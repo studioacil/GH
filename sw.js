@@ -1,6 +1,6 @@
 /* GH — service worker : cache « app shell » en cache-first pour fonctionner hors-ligne.
    Incrémenter CACHE à chaque déploiement (les anciens caches sont purgés au activate). */
-const CACHE = 'gh-shell-v3'; // v3 : network-first pour le code (auto-update), cache-first pour vendor/sons/icons
+const CACHE = 'gh-shell-v4'; // v4 : vendor OCR pré-caché à l'installation (1er OCR instantané ensuite)
 const SHELL = [
   './',
   './index.html',
@@ -20,6 +20,19 @@ const SHELL = [
   './sons/son-rouge.mp3',
   './sons/son-noire.mp3',
   './sons/son-stop.mp3',
+  // moteur OCR pré-caché à l'installation de la PWA (1er chargement lourd une fois,
+  // ensuite l'OCR démarre en ~1 s même hors-ligne)
+  './vendor/tesseract/tesseract.min.js',
+  './vendor/tesseract/worker.min.js',
+  './vendor/tesseract/tesseract-core.wasm',
+  './vendor/tesseract/tesseract-core.wasm.js',
+  './vendor/tesseract/tesseract-core-simd.wasm',
+  './vendor/tesseract/tesseract-core-simd.wasm.js',
+  './vendor/tesseract/tesseract-core-lstm.wasm',
+  './vendor/tesseract/tesseract-core-lstm.wasm.js',
+  './vendor/tesseract/tesseract-core-simd-lstm.wasm',
+  './vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
+  './vendor/tesseract/lang/eng.traineddata',
 ];
 
 self.addEventListener('install', (e) => {

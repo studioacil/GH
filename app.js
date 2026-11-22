@@ -546,7 +546,8 @@ let ocrWorker = null, ocrWorkerPromise = null;
 function prewarmOCR() {
   if (ocrWorker || ocrWorkerPromise) return ocrWorkerPromise;
   ocrWorkerPromise = loadTesseract()
-    .then((T) => T.createWorker(['eng', 'fra'], 1, {
+    // 'eng' seul = moins à télécharger et à initialiser (prix/min/km/adresses sont en latin)
+    .then((T) => T.createWorker(['eng'], 1, {
       workerPath: APP_BASE + 'vendor/tesseract/worker.min.js',
       corePath: APP_BASE + 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
       langPath: APP_BASE + 'vendor/tesseract/lang',
@@ -569,7 +570,7 @@ async function ocrImageEl(img) {
   if (creating) offerStatus.textContent = 'OCR en cours…';
   else { offerProg.style.width = '45%'; offerStatus.textContent = 'OCR en cours…'; }
   const c = document.createElement('canvas');
-  const maxW = 1200;
+  const maxW = 1100; // 1100 px suffisent pour l'OCR d'une offre, et c'est plus rapide
   const srcW = img.naturalWidth || img.width;
   const srcH = img.naturalHeight || img.height;
   if (!srcW || !srcH) throw new Error('image vide (0 px)');
