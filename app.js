@@ -570,9 +570,12 @@ async function ocrImageEl(img) {
   else { offerProg.style.width = '45%'; offerStatus.textContent = 'OCR en cours…'; }
   const c = document.createElement('canvas');
   const maxW = 1200;
-  const scale = Math.min(1, maxW / (img.naturalWidth || img.width || 1));
-  c.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
-  c.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+  const srcW = img.naturalWidth || img.width;
+  const srcH = img.naturalHeight || img.height;
+  if (!srcW || !srcH) throw new Error('image vide (0 px)');
+  const scale = Math.min(1, maxW / srcW);
+  c.width = Math.max(1, Math.round(srcW * scale));
+  c.height = Math.max(1, Math.round(srcH * scale));
   const x = c.getContext('2d');
   x.drawImage(img, 0, 0, c.width, c.height);
   const d = x.getImageData(0, 0, c.width, c.height);
@@ -692,7 +695,13 @@ function closeOfferModal() { offerModal.classList.add('hidden'); }
 async function handleOfferFile(file) {
   if (!file) return;
   openOfferModal();
-  offerImg.src = URL.createObjectURL(file);
+  offerStatus.textContent = 'Chargement de l’image…';
+  // attendre VRAIMENT que l'image soit décodée avant de la passer à l'OCR
+  await new Promise((res, rej) => {
+    offerImg.onload = res;
+    offerImg.onerror = () => rej(new Error('image illisible'));
+    offerImg.src = URL.createObjectURL(file);
+  });
   offerStatus.textContent = 'Image chargée — lancement de l’OCR local…';
   offerScan.style.display = 'block';
   try {
