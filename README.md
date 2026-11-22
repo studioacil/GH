@@ -15,16 +15,35 @@ Tout est stocké dans le `localStorage` du navigateur.
 Aucune dépendance, aucun build. Trois fichiers statiques servis n'importe comment :
 
 ```bash
-cd garantie-horaire
-ruby server.rb          # sert http://localhost:8471/  (Cache-Control: no-store)
+cd GH
+ruby server.rb          # sert http://localhost:8471/ + https://localhost:8472/ (Cache-Control: no-store)
 # ou : python3 -m http.server 8471
 # ou simplement ouvrir index.html dans un navigateur (sauf l'import de fichiers,
 # qui fonctionne aussi en file:// selon le navigateur)
 ```
 
+**Partage public (PWA)** : pousser ce dossier sur un repo GitHub nommé **`GH`** (public) et
+activer Pages (Settings → Pages → branche `main`, racine `/`) → l'appli est servie en HTTPS à
+**`https://<pseudo>.github.io/GH/`** — lien à envoyer (WhatsApp…) ; installation iPhone :
+Safari → Partager → « Sur l'écran d'accueil ». Le zip prêt à partager (sans clé privée) :
+`/Users/JolanRabi/Downloads/gh-app.zip` (drop sur https://app.netlify.com/drop pour une URL instantanée).
+
+**Déploiement auto sur GitHub (sans git local)** : `tools/deploy.rb` pousse tout le dossier via
+l'API REST (blobs → arbre → commit → ref), Pages redéploie dans ~1 min. Créer un PAT (classic,
+scope `repo`) sur github.com → Settings → Developer settings → Personal access tokens, puis :
+```bash
+GH_TOKEN=ghp_xxxx ./tools/deploy.sh     # le token reste sur ta machine
+```
+(Ne committe jamais `cert.pem`/`key.pem` — exclus par le script et le `.gitignore`.)
+
 - App de production : **http://localhost:8471/** (HTTP) et **https://localhost:8472/** (HTTPS, port PWA)
 - Sur iPhone (même Wi-Fi que le Mac) : **http://192.168.1.70:8471/** ou **https://192.168.1.70:8472/**
 - Maquette interactive 2027 (référence design, mode démo ×10) : **http://localhost:8471/maquette-2027/**
+- Maquette **mode « OCR »** (analyse d'offre façon Ride_IQ, OCR 100 % local via Tesseract.js vendored) :
+  **http://localhost:8471/maquette-ocr/** — spec dans `V2-OFFRE.md`
+- **Mode OCR en prod (V2)** : bouton 📸 sur l'écran Course → capture → OCR local (Tesseract préchauffé,
+  ~1–2 s) → verdict de zone → « ▶ Lancer le chrono (prix) ». Sur **Android** : `share_target` dans le
+  manifest → capture → **Partager → GH** → OCR auto (nécessite HTTPS : GitHub Pages ou port 8472).
 
 ### Installer la PWA sur iPhone (plein écran + hors-ligne)
 1. `ruby server.rb` génère `cert.pem`/`key.pem` au premier lancement et ouvre **deux** ports :
@@ -42,7 +61,7 @@ ruby server.rb          # sert http://localhost:8471/  (Cache-Control: no-store)
 ## 2. Architecture
 
 ```
-garantie-horaire/
+GH/
 ├── index.html      # structure + sprite SVG inline (26 symboles <symbol id="i-...">)
 ├── style.css       # design system « Nebula Glass 2027 » (thème sombre + clair « blanc cassé »)
 ├── app.js          # toute la logique (vanilla JS, 'use strict', zéro librairie)

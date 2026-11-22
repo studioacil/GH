@@ -44,7 +44,7 @@ const MODES = {
 // Plateformes actives par défaut (boutons chrono) : Uber en VTC, Uber Eats en livreur.
 // Réglables dans Réglages → « Plateformes actives » (stocké dans settings.platformsOn).
 const DEFAULT_PLATFORMS_ON = { vtc: ['uber'], livreur: ['ubereats'] };
-const DEFAULT_SETTINGS = Object.assign({ mode: 'vtc', platform: 'uber', theme: 'auto', sons: true, approcheMode: 'moyenne', demoOn: false, demoMul: 10, objTemps: 0, platformsOn: { vtc: ['uber'], livreur: ['ubereats'] } }, MODES.vtc);
+const DEFAULT_SETTINGS = Object.assign({ mode: 'vtc', platform: 'uber', theme: 'auto', sons: true, approcheMode: 'moyenne', demoOn: false, demoMul: 10, objTemps: 0, gmapsKey: '', platformsOn: { vtc: ['uber'], livreur: ['ubereats'] } }, MODES.vtc);
 
 // 5 zones : ⬛ noire < seuilNoir · 🟥 rouge < GH · 🟢 verte < seuilEtoile · ⭐ étoile < seuilDouble · 💎 diamant ≥ seuilDouble
 const ZONES = [
@@ -368,7 +368,7 @@ const importInvoicesBtn = $('importInvoicesBtn'), importInvoicesFile = $('import
 const importPaymentsBtn = $('importPaymentsBtn'), importPaymentsFile = $('importPaymentsFile');
 const themeSeg = $('themeSeg'), modeSeg = $('modeSeg'), platformToggles = $('platformToggles');
 const setRate = $('setRate'), setSeuilNoir = $('setSeuilNoir'), setSeuilEtoile = $('setSeuilEtoile'), setSeuilDouble = $('setSeuilDouble');
-const setDemoMul = $('setDemoMul'), setObjTemps = $('setObjTemps'), demoSeg = $('demoSeg'), objLine = $('objLine');
+const setDemoMul = $('setDemoMul'), setObjTemps = $('setObjTemps'), demoSeg = $('demoSeg'), objLine = $('objLine'), setGmapsKey = $('setGmapsKey');
 const demoBadges = document.querySelectorAll('.demoBadge'); // badge « DÉMO ×N » sur Course + Chrono
 function updateDemoBadges() {
   demoBadges.forEach((b) => {
@@ -396,6 +396,7 @@ function showView(name) {
   Object.keys(views).forEach((k) => views[k].classList.toggle('active', k === name));
   document.querySelectorAll('#tabbar .tab').forEach((t) => t.classList.toggle('active', t.dataset.scr === 'view-' + name));
   if (name === 'analyse') renderAnalyse();
+  if (name === 'course') prewarmOCR(); // moteur OCR chaud pour une analyse d'offre < 10 s
 }
 document.querySelectorAll('#tabbar .tab').forEach((t) => t.addEventListener('click', () => {
   const name = t.dataset.scr.replace('view-', '');
@@ -470,6 +471,8 @@ function updateCourse() {
     objLine.style.color = ZONE_COLORS[zObj];
     objLine.innerHTML = 'Objectif <b>' + fmtDur(cible) + '</b>/course → à ce prix ' + zIcon(zObj, 1) + ' <b>' + fmtNum(tObj) + ' €/h</b> (' + zoneMeta(zObj).label + ')';
   }
+  quickVerdict.textContent = '';
+  quickVerdict.style.color = '';
   if (p === null) { zonePills.innerHTML = ''; return; }
   const s = seuilsTemps(p);
   const k = demoMul(); // en mode démo ×N, les seuils d'affichage sont en temps réel (divisés par N)
@@ -483,6 +486,234 @@ function updateCourse() {
 function pill(zone, txt) {
   return '<div class="zonePill zp-' + zone + '"><span class="zpEmoji">' + zIcon(zone, 1.3) + '</span>' +
     '<span class="zpLabel">' + zoneMeta(zone).label + '</span><span class="zpTime">' + txt + '</span></div>';
+}
+
+/* ---- Mode décision rapide (< 10 s, sans capture) : prix saisi + temps total estimé
+   en chips → verdict de zone instantané + pastille correspondante surlignée. ---- */
+const quickRow = $('quickRow'), quickVerdict = $('quickVerdict');
+const QUICK_MINS = [8, 12, 15, 20, 25, 30, 40, 50];
+function buildQuickRow() {
+  quickRow.innerHTML = '<span class="qLabel">⚡ temps total estimé :</span>' +
+    QUICK_MINS.map((m) => '<button type="button" class="qChip" data-min="' + m + '">' + m + ' min</button>').join('');
+}
+quickRow.addEventListener('click', (e) => {
+  const b = e.target.closest('.qChip');
+  if (!b) return;
+  const p = currentPrice();
+  if (p === null) { showToast('Saisis d’abord le prix de l’offre.'); return; }
+  const min = Number(b.dataset.min);
+  const taux = p / (min / 60);
+  const z = zoneDe(taux);
+  document.querySelectorAll('#zonePills .zonePill').forEach((el) => el.classList.toggle('hit', el.classList.contains('zp-' + z)));
+  quickVerdict.innerHTML = zIcon(z, 1.4) + ' <b>' + zoneMeta(z).label + '</b> — ' + fmtNum(taux) + ' €/h à ' + fmtMoney(p) + ' sur ~' + min + ' min';
+  quickVerdict.style.color = ZONE_COLORS[z];
+});
+buildQuickRow();
+
+/* ================= Analyse d'offre (mode OCR) =================
+   Capture de l'offre (file picker iOS, ou share_target « Partager → GH » sur Android) →
+   OCR 100 % local (Tesseract.js vendored) → champs extraits éditables → verdict de zone
+   → bouton « Lancer le chrono » qui démarre le chrono avec le prix de l'offre. */
+const offerBtn = $('offerBtn'), offerFile = $('offerFile'), offerModal = $('offerModal');
+const offerImg = $('offerImg'), offerScan = $('offerScan'), offerProg = $('offerProg'), offerStatus = $('offerStatus');
+const offerRaw = $('offerRaw'), offerPlat = $('offerPlat');
+const offerPrix = $('offerPrix'), offerEta = $('offerEta'), offerDist = $('offerDist'), offerTrajet = $('offerTrajet');
+const offerSurge = $('offerSurge'), offerCoutKm = $('offerCoutKm'), offerPickup = $('offerPickup'), offerDest = $('offerDest');
+const offerVerdict = $('offerVerdict'), offerZone = $('offerZone'), offerTaux = $('offerTaux'), offerDetail = $('offerDetail'), offerPill = $('offerPill');
+const offerStartBtn = $('offerStartBtn'), offerCloseBtn = $('offerCloseBtn');
+let offerRawText = '';
+
+function loadTesseract() {
+  if (!loadTesseract.p) {
+    loadTesseract.p = new Promise((res, rej) => {
+      if (window.Tesseract) return res(window.Tesseract);
+      const s = document.createElement('script');
+      s.src = 'vendor/tesseract/tesseract.min.js';
+      s.onload = () => res(window.Tesseract);
+      s.onerror = () => rej(new Error('vendor/tesseract/tesseract.min.js introuvable'));
+      document.head.appendChild(s);
+    });
+  }
+  return loadTesseract.p;
+}
+// Worker OCR préchauffé : créé dès l'ouverture de l'app (écran Course) pour que la 1re
+// capture soit analysée en ~1–2 s (décision < 10 s). Le worker est réutilisé ensuite.
+let ocrWorker = null, ocrWorkerPromise = null;
+function prewarmOCR() {
+  if (ocrWorker || ocrWorkerPromise) return ocrWorkerPromise;
+  ocrWorkerPromise = loadTesseract()
+    .then((T) => T.createWorker(['eng', 'fra'], 1, {
+      workerPath: 'vendor/tesseract/worker.min.js',
+      corePath: 'vendor/tesseract/tesseract-core.wasm',
+      langPath: 'vendor/tesseract/lang',
+    }))
+    .then((w) => { ocrWorker = w; return w; })
+    .catch(() => { ocrWorkerPromise = null; });
+  return ocrWorkerPromise;
+}
+async function getOcrWorker() {
+  if (ocrWorker) return ocrWorker;
+  if (!ocrWorkerPromise) prewarmOCR();
+  return ocrWorkerPromise;
+}
+// OCR sur une image : canvas inversé (Tesseract préfère foncé sur clair), image réduite à 1200 px
+async function ocrImageEl(img) {
+  offerStatus.textContent = 'Chargement du moteur OCR (local)…';
+  offerProg.style.width = '6%';
+  const creating = !ocrWorker;
+  const worker = await getOcrWorker();
+  if (creating) offerStatus.textContent = 'OCR en cours…';
+  else { offerProg.style.width = '45%'; offerStatus.textContent = 'OCR en cours…'; }
+  const c = document.createElement('canvas');
+  const maxW = 1200;
+  const scale = Math.min(1, maxW / (img.naturalWidth || img.width || 1));
+  c.width = Math.max(1, Math.round((img.naturalWidth || img.width) * scale));
+  c.height = Math.max(1, Math.round((img.naturalHeight || img.height) * scale));
+  const x = c.getContext('2d');
+  x.drawImage(img, 0, 0, c.width, c.height);
+  const d = x.getImageData(0, 0, c.width, c.height);
+  for (let i = 0; i < d.data.length; i += 4) {
+    d.data[i] = 255 - d.data[i]; d.data[i + 1] = 255 - d.data[i + 1]; d.data[i + 2] = 255 - d.data[i + 2];
+  }
+  x.putImageData(d, 0, 0);
+  const { data: { text } } = await worker.recognize(c); // worker réutilisé (pas de terminate)
+  offerProg.style.width = '100%';
+  offerStatus.textContent = 'OCR terminé ✔ — corrige les champs si besoin.';
+  return text;
+}
+function parseOfferText(text) {
+  const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean);
+  const out = { prix: null, eta: null, dist: null, surge: null, pickup: '', dest: '' };
+  const prix = String(text).match(/(\d{1,3})[.,](\d{2})\s*€/) || String(text).match(/€\s*(\d{1,3})[.,](\d{2})/);
+  if (prix) out.prix = parseFloat((prix[1] || prix[3]) + '.' + (prix[2] || prix[4]));
+  const eta = String(text).match(/(\d{1,2})\s*min/i);
+  if (eta) out.eta = parseInt(eta[1], 10);
+  const dist = String(text).match(/(\d{1,2})[.,]\d\s*(km|mi|miles)/i);
+  if (dist) out.dist = parseFloat(dist[1].replace(',', '.')) * (/mi/i.test(dist[2]) ? 1.609 : 1);
+  const surge = String(text).match(/[x×]\s*(\d[.,]\d)/);
+  if (surge) out.surge = parseFloat(surge[1].replace(',', '.'));
+  const addr = lines.filter((l) => l.length > 14 && /[,\d]/.test(l) && !/€|min|km|mi|nouvelle|offre|accepter|refuser|depart|destination|uber|bolt/i.test(l));
+  if (addr[0]) out.pickup = addr[0];
+  if (addr[1]) out.dest = addr[1];
+  return out;
+}
+function detectPlatformFromText(text) {
+  const t = String(text || '').toLowerCase();
+  const act = activePlatforms();
+  const pick = (p) => (act.indexOf(p) !== -1 ? p : act[0]);
+  if (/bolt/.test(t)) return pick('bolt');
+  if (/deliveroo/.test(t)) return pick('deliveroo');
+  if (/eats|ubereats|uber eats/.test(t)) return pick('ubereats');
+  if (/uber/.test(t)) return pick('uber');
+  return settings.platform || act[0];
+}
+function offerVerdictCalc() {
+  const prix = parseFloat(String(offerPrix.value).replace(',', '.'));
+  if (!(prix > 0)) return null;
+  const eta = parseFloat(String(offerEta.value).replace(',', '.')) || 0;
+  const dist = parseFloat(String(offerDist.value).replace(',', '.')) || 0;
+  const trajet = parseFloat(String(offerTrajet.value).replace(',', '.')) || Math.round(dist * 2.2 + 3);
+  const coutKm = parseFloat(String(offerCoutKm.value).replace(',', '.')) || 0;
+  const totalMin = eta + trajet;
+  const taux = totalMin > 0 ? prix / (totalMin / 60) : 0;
+  const zone = zoneDe(taux);
+  const net = prix - coutKm * (dist + eta * 0.4);
+  return { prix, eta, trajet, totalMin, taux, zone, net };
+}
+function renderOfferVerdict() {
+  const v = offerVerdictCalc();
+  if (!v) { offerVerdict.classList.add('hidden'); offerStartBtn.disabled = true; return; }
+  const zm = zoneMeta(v.zone);
+  offerVerdict.classList.remove('hidden');
+  offerVerdict.style.borderColor = zm.color;
+  offerVerdict.style.boxShadow = '0 0 34px ' + zm.color + '44';
+  offerZone.innerHTML = zIcon(v.zone, 1.6) + ' ' + zm.label;
+  offerZone.style.color = zm.color;
+  offerTaux.textContent = fmtNum(v.taux) + ' €/h';
+  offerTaux.style.color = zm.color;
+  offerDetail.innerHTML = 'prix ' + fmtMoney(v.prix) + ' · approche ' + v.eta + ' min + trajet ~' + v.trajet + ' min → <b>' + v.totalMin + ' min</b><br>' +
+    'net après coûts : <b>' + fmtMoney(v.net) + '</b>';
+  const ok = v.zone === 'double' || v.zone === 'etoile' || v.zone === 'verte';
+  offerPill.className = 'pill ' + (ok ? 'ok' : v.zone === 'rouge' ? 'warn' : 'bad');
+  offerPill.textContent = ok ? 'RENTABLE (≥ GH ' + fmtNum(settings.rate, 0) + ' €/h)' : v.zone === 'rouge' ? 'À ÉVALUER (sous GH, au-dessus du plancher ' + fmtNum(seuilNoir(), 2) + ' €)' : 'PERTE — zone noire (risque pour la plateforme)';
+  offerStartBtn.disabled = false;
+  offerStartBtn.innerHTML = '▶ Lancer le chrono (' + fmtMoney(v.prix) + ')';
+}
+// Estimation du trajet/approche avec le trafic réel via Google Distance Matrix.
+// Appelée UNIQUEMENT si une clé perso est renseignée (Réglages) — les adresses vont
+// alors de ton téléphone directement à Google, jamais ailleurs. Fallback : estimation locale.
+async function refineOfferWithRouting() {
+  const key = (settings.gmapsKey || '').trim();
+  if (!key) return;
+  const pickup = offerPickup.value.trim(), dest = offerDest.value.trim();
+  if (!pickup || !dest) return;
+  offerStatus.textContent = 'OCR ✔ — estimation trafic réel (Google)…';
+  try {
+    const u = (origins, destinations) => 'https://maps.googleapis.com/maps/api/distancematrix/json?origins=' +
+      encodeURIComponent(origins) + '&destinations=' + encodeURIComponent(destinations) +
+      '&mode=driving&departure_time=now&key=' + encodeURIComponent(key);
+    const r = await fetch(u(pickup, dest));
+    const j = await r.json();
+    const el = j.rows && j.rows[0] && j.rows[0].elements && j.rows[0].elements[0];
+    if (el && el.status === 'OK' && el.duration) {
+      offerTrajet.value = Math.ceil(el.duration.value / 60);
+      if (el.distance) offerDist.value = Math.round(el.distance.value / 100) / 10;
+      renderOfferVerdict();
+    }
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        try {
+          const r2 = await fetch(u(pos.coords.latitude + ',' + pos.coords.longitude, pickup));
+          const j2 = await r2.json();
+          const el2 = j2.rows && j2.rows[0] && j2.rows[0].elements && j2.rows[0].elements[0];
+          if (el2 && el2.status === 'OK' && el2.duration) { offerEta.value = Math.ceil(el2.duration.value / 60); renderOfferVerdict(); }
+        } catch (err) { /* ignore */ }
+      }, () => {}, { timeout: 6000, maximumAge: 30000 });
+    }
+    offerStatus.textContent = 'OCR ✔ + trafic réel Google ✔ — corrige les champs si besoin.';
+  } catch (e) {
+    offerStatus.textContent = 'OCR ✔ (routing Google indisponible : ' + e.message + ') — estimation locale.';
+  }
+}
+function openOfferModal() {
+  offerModal.classList.remove('hidden');
+  offerVerdict.classList.add('hidden');
+  offerRaw.textContent = '—';
+  offerStatus.textContent = '…';
+  offerProg.style.width = '0';
+  offerPlat.textContent = '';
+  offerStartBtn.disabled = true;
+}
+function closeOfferModal() { offerModal.classList.add('hidden'); }
+async function handleOfferFile(file) {
+  if (!file) return;
+  openOfferModal();
+  offerImg.src = URL.createObjectURL(file);
+  offerStatus.textContent = 'Image chargée — lancement de l’OCR local…';
+  offerScan.style.display = 'block';
+  try {
+    const text = await ocrImageEl(offerImg);
+    offerScan.style.display = 'none';
+    offerRawText = text;
+    offerRaw.textContent = text;
+    const p = parseOfferText(text);
+    offerPrix.value = p.prix !== null ? String(p.prix).replace('.', ',') : '';
+    offerEta.value = p.eta !== null ? p.eta : '';
+    offerDist.value = p.dist !== null ? String(Math.round(p.dist * 10) / 10).replace('.', ',') : '';
+    offerTrajet.value = p.dist !== null ? Math.round(p.dist * 2.2 + 3) : '';
+    offerSurge.value = p.surge !== null ? String(p.surge).replace('.', ',') : '';
+    offerPickup.value = p.pickup;
+    offerDest.value = p.dest;
+    const plat = detectPlatformFromText(text);
+    offerPlat.textContent = '· ' + ((PLATFORMS[plat] || {}).label || plat);
+    offerPlat.dataset.plat = plat;
+    renderOfferVerdict();
+    refineOfferWithRouting(); // trafic réel si clé Google renseignée (async, non bloquant)
+  } catch (e) {
+    offerScan.style.display = 'none';
+    offerStatus.textContent = 'OCR indisponible (' + e.message + ') — remplis les champs à la main.';
+    renderOfferVerdict();
+  }
 }
 
 /* ================= Chrono (anneau 60 min + bille) ================= */
@@ -1694,6 +1925,7 @@ function renderSettings() {
   document.querySelectorAll('#demoSeg .segBtn').forEach((b) => b.classList.toggle('on', (b.dataset.demo === 'on') === !!settings.demoOn));
   setDemoMul.value = settings.demoMul || 10;
   setObjTemps.value = settings.objTemps || 0;
+  setGmapsKey.value = settings.gmapsKey || '';
   updateDemoBadges();
   document.querySelectorAll('#approcheSeg .segBtn').forEach((b) => b.classList.toggle('on', b.dataset.app === (settings.approcheMode || 'moyenne')));
   const actPlats = activePlatforms();
@@ -1748,6 +1980,7 @@ function onSettingsChange() {
   settings.demoMul = Number.isFinite(dm) && dm >= 1 ? Math.min(dm, 1000) : 10;
   const ot = parseFloat(String(setObjTemps.value).replace(',', '.'));
   settings.objTemps = Number.isFinite(ot) && ot >= 0 ? ot : 0;
+  settings.gmapsKey = String(setGmapsKey.value || '').trim();
   saveSettings();
   renderSettings();
   updateCourse();
@@ -1764,6 +1997,32 @@ function switchProfile(name) {
 
 /* ================= Événements ================= */
 priceInput.addEventListener('input', updateCourse);
+offerBtn.addEventListener('click', () => offerFile.click());
+offerFile.addEventListener('change', () => {
+  if (offerFile.files && offerFile.files[0]) handleOfferFile(offerFile.files[0]);
+  offerFile.value = '';
+});
+offerCloseBtn.addEventListener('click', closeOfferModal);
+offerModal.addEventListener('click', (e) => { if (e.target === offerModal) closeOfferModal(); });
+[offerPrix, offerEta, offerDist, offerTrajet, offerCoutKm].forEach((el) => el.addEventListener('input', renderOfferVerdict));
+// Verdict → lancer le chrono avec le prix de l'offre et la plateforme détectée
+offerStartBtn.addEventListener('click', () => {
+  const v = offerVerdictCalc();
+  if (!v) return;
+  const plat = offerPlat.dataset.plat || settings.platform;
+  closeOfferModal();
+  priceInput.value = String(v.prix).replace('.', ',');
+  updateCourse();
+  if (timer.running) { showToast('Un chrono est déjà en cours — prix de l’offre : ' + fmtMoney(v.prix) + '.'); showView('chrono'); return; }
+  startTimer(v.prix, plat);
+  showToast('▶ Chrono lancé avec ' + fmtMoney(v.prix) + ' (' + ((PLATFORMS[plat] || {}).label || plat) + ') — offre ' + zoneMeta(v.zone).label + '.');
+});
+// Android : « Partager → GH » (share_target du manifest) envoie la capture au service worker
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.addEventListener('message', (e) => {
+    if (e.data && e.data.type === 'share-image' && e.data.file) handleOfferFile(e.data.file);
+  });
+}
 startBtns.addEventListener('click', (e) => {
   const b = e.target.closest('.cta');
   if (!b || b.disabled) return;
@@ -1941,7 +2200,7 @@ platformToggles.addEventListener('click', (e) => {
   renderStartButtons();
   showToast(ico('car', 1) + ' Boutons chrono ' + modeOf() + ' : ' + act.map((p) => PLATFORMS[p].label).join(', ') + '.');
 });
-[setRate, setSeuilNoir, setSeuilEtoile, setSeuilDouble, setDemoMul, setObjTemps].forEach((el) => el.addEventListener('change', onSettingsChange));
+[setRate, setSeuilNoir, setSeuilEtoile, setSeuilDouble, setDemoMul, setObjTemps, setGmapsKey].forEach((el) => el.addEventListener('change', onSettingsChange));
 demoSeg.addEventListener('click', (e) => {
   const b = e.target.closest('.segBtn');
   if (!b) return;

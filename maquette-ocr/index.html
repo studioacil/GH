@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>GH — Maquette mode OCR (analyse d'offre)</title>
+<style>
+  :root {
+    --bg: #05060a; --card: #101018; --card2: #17171f; --line: rgba(255,255,255,.09);
+    --text: #f2f2f7; --muted: #9a9aa5;
+    --noire: #3a3a3e; --rouge: #ff453a; --verte: #30d158; --etoile: #ffd60a; --double: #5ac8fa;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, 'Segoe UI', Roboto, sans-serif; min-height: 100dvh;
+    display: flex; flex-direction: column; align-items: center; padding: 18px 14px 60px; }
+  h1 { font-size: 1.25rem; margin: 4px 0 2px; }
+  .sub { color: var(--muted); font-size: .82rem; margin-bottom: 14px; text-align: center; max-width: 560px; }
+  .badge { font-size: .7rem; color: var(--double); border: 1px solid rgba(90,200,250,.35);
+    border-radius: 999px; padding: 3px 10px; margin-bottom: 10px; }
+  .wrap { display: flex; gap: 18px; flex-wrap: wrap; justify-content: center; align-items: flex-start; width: 100%; max-width: 980px; }
+  .phone { width: 300px; border-radius: 34px; border: 6px solid #26262e; background: #000;
+    box-shadow: 0 24px 60px rgba(0,0,0,.6); overflow: hidden; position: relative; }
+  .phone canvas { display: block; width: 100%; height: auto; }
+  .scanline { position: absolute; left: 0; right: 0; height: 3px; background: var(--double);
+    box-shadow: 0 0 18px 4px rgba(90,200,250,.8); display: none; animation: scan 1.1s linear infinite; }
+  @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+  .panel { flex: 1; min-width: 300px; max-width: 460px; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }
+  .card h2 { margin: 0 0 8px; font-size: .95rem; }
+  button { font: inherit; cursor: pointer; border: none; border-radius: 12px; padding: 12px 16px; font-weight: 700; }
+  .cta { background: var(--double); color: #04121c; width: 100%; font-size: 1rem; }
+  .ctaGhost { background: var(--card2); color: var(--text); border: 1px solid var(--line); width: 100%; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip { background: var(--card2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 999px; padding: 8px 13px; font-weight: 600; font-size: .85rem; }
+  .chip.on { border-color: var(--double); color: var(--double); }
+  input[type=number], input[type=text] { width: 100%; background: var(--card2); border: 1px solid var(--line);
+    color: var(--text); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 1rem; }
+  label.fld { display: flex; flex-direction: column; gap: 4px; font-size: .75rem; color: var(--muted); }
+  #ocrRaw { font-family: ui-monospace, monospace; font-size: .72rem; color: var(--muted);
+    background: #0a0a10; border-radius: 10px; padding: 8px; max-height: 110px; overflow: auto; white-space: pre-wrap; }
+  .verdict { text-align: center; padding: 18px 14px; border-radius: 18px; border: 2px solid var(--line);
+    background: var(--card); transition: all .3s; }
+  .verdict .zone { font-size: 2rem; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 10px; }
+  .verdict .taux { font-size: 1.5rem; font-weight: 800; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .verdict .detail { color: var(--muted); font-size: .8rem; margin-top: 6px; line-height: 1.5; }
+  .pill { display: inline-block; border-radius: 999px; padding: 5px 14px; font-weight: 800; font-size: .85rem; margin-top: 10px; }
+  .pill.ok { background: rgba(48,209,88,.15); color: var(--verte); }
+  .pill.warn { background: rgba(255,214,10,.15); color: var(--etoile); }
+  .pill.bad { background: rgba(255,69,58,.15); color: var(--rouge); }
+  .hidden { display: none !important; }
+  .prog { height: 5px; border-radius: 99px; background: var(--card2); overflow: hidden; }
+  .prog i { display: block; height: 100%; background: var(--double); width: 0; transition: width .2s; }
+  .foot { color: var(--muted); font-size: .72rem; text-align: center; margin-top: 18px; max-width: 560px; line-height: 1.5; }
+  .offersSel { display: flex; gap: 8px; }
+  .offersSel .chip.on { border-color: var(--etoile); color: var(--etoile); }
+</style>
+</head>
+<body>
+  <div class="badge">MAQUETTE — mode « OCR » (analyse d'offre avant acceptation)</div>
+  <h1>📸 GH · Analyse d'offre</h1>
+  <p class="sub">Capture l'offre Uber/Bolt → OCR <b>100 % local</b> (Tesseract.js dans le navigateur, aucune image envoyée) → verdict de zone en ~1 s.</p>
+
+  <div class="wrap">
+    <!-- ===== Téléphone simulé : l'offre ===== -->
+    <div>
+      <div class="offersSel" style="margin-bottom:8px; justify-content:center; display:flex;">
+        <button class="chip on" id="offerGood">Offre A — 12,40 € / 5 min / 3,2 km</button>
+        <button class="chip" id="offerBad">Offre B — 6,80 € / 14 min / 9,8 km</button>
+      </div>
+      <div class="phone">
+        <canvas id="offerCanvas" width="780" height="1688"></canvas>
+        <div class="scanline" id="scanline"></div>
+      </div>
+      <div style="display:flex; gap:8px; margin-top:10px;">
+        <button class="cta" id="btnOcr" style="flex:1">📸 Capturer & analyser (OCR)</button>
+      </div>
+      <label class="fld" style="margin-top:8px; align-items:center;">
+        <span style="text-align:center">…ou importer une vraie capture :</span>
+        <input type="file" id="fileInput" accept="image/*" style="font-size:.75rem; padding:6px;" />
+      </label>
+    </div>
+
+    <!-- ===== Panneau résultat ===== -->
+    <div class="panel">
+      <div class="card">
+        <h2>Progression OCR</h2>
+        <div class="prog"><i id="progBar"></i></div>
+        <div id="ocrStatus" style="color:var(--muted); font-size:.78rem; margin-top:6px;">En attente d'une capture…</div>
+        <details style="margin-top:8px"><summary style="color:var(--muted); font-size:.78rem; cursor:pointer">Texte brut OCR</summary>
+          <div id="ocrRaw">—</div>
+        </details>
+      </div>
+
+      <div class="card hidden" id="parsedCard">
+        <h2>Champs extraits (éditables si l'OCR dérape)</h2>
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:8px;">
+          <label class="fld">Prix (€)<input type="number" step="0.01" id="fPrix" /></label>
+          <label class="fld">Approche (min)<input type="number" step="1" id="fEta" /></label>
+          <label class="fld">Distance (km)<input type="number" step="0.1" id="fDist" /></label>
+          <label class="fld">Surge (×)<input type="number" step="0.1" id="fSurge" /></label>
+          <label class="fld" style="grid-column:1/-1">Départ<input type="text" id="fPickup" /></label>
+          <label class="fld" style="grid-column:1/-1">Destination<input type="text" id="fDest" /></label>
+        </div>
+        <div class="row" style="margin-top:10px; align-items:end;">
+          <label class="fld" style="flex:1">Coût perso (€/km)
+            <input type="number" step="0.05" id="fCoutKm" value="0.30" /></label>
+          <button class="chip on" id="btnRecalc" style="padding:10px 16px;">Recalculer</button>
+        </div>
+      </div>
+
+      <div class="verdict hidden" id="verdict">
+        <div class="zone" id="vZone">—</div>
+        <div class="taux" id="vTaux">—</div>
+        <div class="detail" id="vDetail">—</div>
+        <span class="pill ok hidden" id="vPill">RENTABLE (≥ GH)</span>
+      </div>
+
+      <div class="card">
+        <h2>⚡ Mode décision rapide (sans capture, < 10 s)</h2>
+        <label class="fld">Prix de l'offre (€)<input type="number" step="0.01" id="qPrix" placeholder="12,40" /></label>
+        <div class="row" style="margin-top:8px;" id="qEtaRow">
+          <button class="chip" data-min="3">3 min</button>
+          <button class="chip on" data-min="5">5 min</button>
+          <button class="chip" data-min="8">8 min</button>
+          <button class="chip" data-min="12">12 min</button>
+          <button class="chip" data-min="15">15 min</button>
+        </div>
+        <label class="fld" style="margin-top:8px">Distance estimée (km)<input type="number" step="0.5" id="qDist" placeholder="3,2" /></label>
+        <div id="qVerdict" class="detail" style="margin-top:8px; color:var(--muted); font-size:.85rem;">Renseigne prix + approche + distance → verdict instantané.</div>
+      </div>
+
+      <div class="row">
+        <button class="ctaGhost" id="btnPrefill">▶ Pré-remplir le chrono GH</button>
+        <button class="ctaGhost" id="btnNext">Offre suivante</button>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">
+    Maquette V2 « mode OCR » — l'offre est dessinée dans un canvas (polices réelles) puis passée à
+    <b>Tesseract.js</b> (vendored dans <code>vendor/tesseract/</code>) : l'OCR tourne dans le navigateur, hors-ligne.
+    En prod : la vraie capture arrive par file picker (iOS) ou <code>share_target</code> « Partager → GH » (Android).
+    L'estimation de trajet utilise ici distance × ~2,2 min/km ; en prod : Google Distance Matrix (ta clé) ou OSRM.
+    Verdict : taux = prix ÷ (approche + trajet) → zone GH (30 €/h, seuils 22,5 / 37,5 / 60).
+  </p>
+
+<script src="../vendor/tesseract/tesseract.min.js"></script>
+<script>
+'use strict';
+/* ================= Maquette mode OCR ================= */
+const GH = 30, SEUIL_NOIR = 22.5, SEUIL_ETOILE = 37.5, SEUIL_DOUBLE = 60;
+const ZONES = [
+  { id: 'noire',  label: 'NOIRE',   color: '#8e8e93', emoji: '💀' },
+  { id: 'rouge',  label: 'ROUGE',   color: '#ff453a', emoji: '🔺' },
+  { id: 'verte',  label: 'VERTE',   color: '#30d158', emoji: '🟢' },
+  { id: 'etoile', label: 'ÉTOILE',  color: '#ffd60a', emoji: '⭐' },
+  { id: 'double', label: 'DIAMANT', color: '#5ac8fa', emoji: '💎' },
+];
+const zoneDe = (t) => t >= SEUIL_DOUBLE ? 'double' : t >= SEUIL_ETOILE ? 'etoile' : t >= GH ? 'verte' : t >= SEUIL_NOIR ? 'rouge' : 'noire';
+const zoneMeta = (z) => ZONES.find((x) => x.id === z);
+
+/* ---- Deux offres de démo (style écran d'offre Uber Driver) ---- */
+const OFFRES = {
+  bonne: { prix: '12,40 €', eta: '5 min', dist: '3,2 km', surge: '×1,5',
+    pickup: '12 rue de la République, 69002 Lyon', dest: 'Gare de Lyon Part-Dieu, 69003 Lyon' },
+  mauvaise: { prix: '6,80 €', eta: '14 min', dist: '9,8 km', surge: '',
+    pickup: '8 avenue Jean Jaurès, 69007 Lyon', dest: 'Aéroport Lyon-Saint-Exupéry, 69125 Colombier-Saugnieu' },
+};
+let currentOffer = 'bonne';
+
+/* ---- Dessine l'offre dans le canvas (polices système réelles) ---- */
+function drawOffer() {
+  const c = document.getElementById('offerCanvas');
+  const x = c.getContext('2d');
+  const o = OFFRES[currentOffer];
+  const W = c.width, H = c.height;
+  x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  // barre de statut
+  x.fillStyle = '#fff'; x.font = '600 30px -apple-system, sans-serif';
+  x.fillText('21:47', 40, 70);
+  x.textAlign = 'right'; x.fillText('▮▮▮ 5G  82%', W - 40, 70); x.textAlign = 'left';
+  // carte d'offre
+  const cx = 30, cy = 130, cw = W - 60, ch = 560;
+  x.fillStyle = '#1c1c1e';
+  roundRect(x, cx, cy, cw, ch, 36); x.fill();
+  x.fillStyle = '#fff'; x.textAlign = 'center';
+  x.font = '700 44px -apple-system, sans-serif';
+  x.fillText('Nouvelle offre', W / 2, cy + 70);
+  // prix en gros
+  x.font = '800 110px -apple-system, sans-serif';
+  x.fillStyle = '#30d158';
+  x.fillText(o.prix, W / 2, cy + 220);
+  // méta trajet
+  x.fillStyle = '#fff'; x.font = '600 40px -apple-system, sans-serif';
+  x.fillText(o.eta + '  ·  ' + o.dist + (o.surge ? '  ·  ' + o.surge : ''), W / 2, cy + 300);
+  // adresses
+  x.textAlign = 'left';
+  x.font = '600 36px -apple-system, sans-serif';
+  x.fillStyle = '#8e8e93'; x.fillText('DÉPART', cx + 40, cy + 380);
+  x.fillStyle = '#fff'; x.fillText(o.pickup, cx + 40, cy + 425);
+  x.fillStyle = '#8e8e93'; x.fillText('DESTINATION', cx + 40, cy + 490);
+  x.fillStyle = '#fff'; x.fillText(o.dest, cx + 40, cy + 535);
+  x.textAlign = 'center';
+  // boutons
+  x.fillStyle = '#0a84ff'; roundRect(x, cx + 20, cy + ch + 30, cw - 40, 90, 24); x.fill();
+  x.fillStyle = '#fff'; x.font = '700 40px -apple-system, sans-serif';
+  x.fillText('Accepter', W / 2, cy + ch + 92);
+  x.strokeStyle = '#3a3a3e'; x.lineWidth = 3; roundRect(x, cx + 20, cy + ch + 140, cw - 40, 90, 24); x.stroke();
+  x.fillStyle = '#8e8e93'; x.fillText('Refuser', W / 2, cy + ch + 202);
+}
+function roundRect(x, a, b, w, h, r) {
+  x.beginPath();
+  x.moveTo(a + r, b); x.arcTo(a + w, b, a + w, b + h, r); x.arcTo(a + w, b + h, a, b + h, r);
+  x.arcTo(a, b + h, a, b, r); x.arcTo(a, b, a + w, b, r); x.closePath();
+}
+
+/* ---- OCR : canvas -> image inversée (tesseract préfère foncé sur clair) -> Tesseract ---- */
+async function runOCR(source) {
+  const status = document.getElementById('ocrStatus'), bar = document.getElementById('progBar');
+  const scan = document.getElementById('scanline');
+  scan.style.display = 'block';
+  status.textContent = 'Chargement du moteur OCR (local)…';
+  bar.style.width = '8%';
+  const worker = await Tesseract.createWorker(['eng', 'fra'], 1, {
+    workerPath: '../vendor/tesseract/worker.min.js',
+    corePath: '../vendor/tesseract/tesseract-core.wasm',
+    langPath: '../vendor/tesseract/lang',
+    logger: (m) => { if (m.status === 'recognizing text') { bar.style.width = (8 + (m.progress || 0) * 88) + '%'; status.textContent = 'OCR en cours… ' + Math.round((m.progress || 0) * 100) + ' %'; } },
+  });
+  // inversion pour fiabilité
+  const off = document.createElement('canvas');
+  off.width = source.width; off.height = source.height;
+  const ox = off.getContext('2d');
+  ox.drawImage(source, 0, 0);
+  const img = ox.getImageData(0, 0, off.width, off.height);
+  for (let i = 0; i < img.data.length; i += 4) {
+    img.data[i] = 255 - img.data[i]; img.data[i + 1] = 255 - img.data[i + 1]; img.data[i + 2] = 255 - img.data[i + 2];
+  }
+  ox.putImageData(img, 0, 0);
+  status.textContent = 'Reconnaissance du texte…';
+  const { data: { text } } = await worker.recognize(off);
+  await worker.terminate();
+  scan.style.display = 'none';
+  bar.style.width = '100%';
+  status.textContent = 'OCR terminé ✔';
+  document.getElementById('ocrRaw').textContent = text;
+  return text;
+}
+
+/* ---- Parsing du texte OCR ---- */
+function parseOffer(text) {
+  const lines = text.split('\n').map((l) => l.trim()).filter(Boolean);
+  const out = { prix: null, eta: null, dist: null, surge: null, pickup: '', dest: '' };
+  const prix = text.match(/(\d{1,3})[.,](\d{2})\s*€/) || text.match(/€\s*(\d{1,3})[.,](\d{2})/);
+  if (prix) out.prix = parseFloat((prix[1] || prix[3]) + '.' + (prix[2] || prix[4]));
+  const eta = text.match(/(\d{1,2})\s*min/i);
+  if (eta) out.eta = parseInt(eta[1], 10);
+  const dist = text.match(/(\d{1,2})[.,]\d\s*(km|mi|miles)/i);
+  if (dist) out.dist = parseFloat(dist[1].replace(',', '.')) * (/mi/i.test(dist[2]) ? 1.609 : 1);
+  const surge = text.match(/[x×]\s*(\d[.,]\d)/);
+  if (surge) out.surge = parseFloat(surge[1].replace(',', '.'));
+  // adresses : lignes longues contenant une virgule ou un numéro
+  const addr = lines.filter((l) => l.length > 14 && /[,\d]/.test(l) && !/€|min|km|Nouvelle|Accepter|Refuser|DÉPART|DESTINATION/i.test(l));
+  if (addr[0]) out.pickup = addr[0];
+  if (addr[1]) out.dest = addr[1];
+  return out;
+}
+
+/* ---- Verdict ---- */
+function computeVerdict(prix, etaMin, distKm, coutKm) {
+  const trajetMin = Math.round(distKm * 2.2 + 3); // estimation locale (prod: API trafic)
+  const totalMin = etaMin + trajetMin;
+  const taux = prix / (totalMin / 60);
+  const zone = zoneDe(taux);
+  const net = prix - coutKm * (distKm + etaMin * 0.4); // approche = km à vide approx
+  return { trajetMin, totalMin, taux, zone, net };
+}
+function showVerdict(v, prix) {
+  const box = document.getElementById('verdict');
+  const zm = zoneMeta(v.zone);
+  box.classList.remove('hidden');
+  box.style.borderColor = zm.color;
+  box.style.boxShadow = '0 0 40px ' + zm.color + '55';
+  document.getElementById('vZone').innerHTML = '<span style="font-size:2.2rem">' + zm.emoji + '</span> ' + zm.label;
+  document.getElementById('vZone').style.color = zm.color;
+  document.getElementById('vTaux').textContent = v.taux.toFixed(2) + ' €/h';
+  document.getElementById('vTaux').style.color = zm.color;
+  document.getElementById('vDetail').innerHTML =
+    'prix ' + prix.toFixed(2).replace('.', ',') + ' € · approche ' + Math.round(v.totalMin - v.trajetMin) + ' min + trajet ~' + v.trajetMin + ' min' +
+    ' → ' + v.totalMin + ' min au total<br>net après coûts : <b>' + v.net.toFixed(2).replace('.', ',') + ' €</b>';
+  const pill = document.getElementById('vPill');
+  pill.className = 'pill ' + (v.zone === 'double' || v.zone === 'etoile' || v.zone === 'verte' ? 'ok' : v.zone === 'rouge' ? 'warn' : 'bad');
+  pill.textContent = (v.zone === 'double' || v.zone === 'etoile' || v.zone === 'verte') ? 'RENTABLE (≥ GH ' + GH + ' €/h)'
+    : v.zone === 'rouge' ? 'À ÉVALUER (sous GH, au-dessus du plancher)' : 'PERTE (zone noire — risque pour Uber)';
+  // après le verdict → proposition de lancer le chrono avec le prix de l'offre
+  document.getElementById('btnPrefill').textContent = '▶ Lancer le chrono (' + prix.toFixed(2).replace('.', ',') + ' €)';
+}
+
+/* ---- Événements ---- */
+document.getElementById('offerGood').addEventListener('click', () => { currentOffer = 'bonne'; sel(); });
+document.getElementById('offerBad').addEventListener('click', () => { currentOffer = 'mauvaise'; sel(); });
+function sel() {
+  document.getElementById('offerGood').classList.toggle('on', currentOffer === 'bonne');
+  document.getElementById('offerBad').classList.toggle('on', currentOffer === 'mauvaise');
+  drawOffer();
+}
+document.getElementById('btnOcr').addEventListener('click', async () => {
+  const parsedCard = document.getElementById('parsedCard');
+  try {
+    const text = await runOCR(document.getElementById('offerCanvas'));
+    const p = parseOffer(text);
+    parsedCard.classList.remove('hidden');
+    document.getElementById('fPrix').value = p.prix !== null ? p.prix : '';
+    document.getElementById('fEta').value = p.eta !== null ? p.eta : '';
+    document.getElementById('fDist').value = p.dist !== null ? p.dist : '';
+    document.getElementById('fSurge').value = p.surge !== null ? p.surge : '';
+    document.getElementById('fPickup').value = p.pickup;
+    document.getElementById('fDest').value = p.dest;
+    recalc();
+  } catch (e) {
+    document.getElementById('ocrStatus').textContent = 'Erreur OCR : ' + e.message;
+  }
+});
+document.getElementById('fileInput').addEventListener('change', async (e) => {
+  const f = e.target.files && e.target.files[0];
+  if (!f) return;
+  const img = new Image();
+  img.onload = async () => {
+    const c = document.getElementById('offerCanvas');
+    const x = c.getContext('2d');
+    const scale = Math.min(c.width / img.width, c.height / img.height);
+    x.fillStyle = '#000'; x.fillRect(0, 0, c.width, c.height);
+    x.drawImage(img, (c.width - img.width * scale) / 2, (c.height - img.height * scale) / 2, img.width * scale, img.height * scale);
+    document.getElementById('btnOcr').click();
+  };
+  img.src = URL.createObjectURL(f);
+});
+function recalc() {
+  const prix = parseFloat(String(document.getElementById('fPrix').value).replace(',', '.'));
+  const eta = parseFloat(String(document.getElementById('fEta').value).replace(',', '.')) || 0;
+  const dist = parseFloat(String(document.getElementById('fDist').value).replace(',', '.')) || 0;
+  const coutKm = parseFloat(String(document.getElementById('fCoutKm').value).replace(',', '.')) || 0;
+  if (!(prix > 0)) return;
+  showVerdict(computeVerdict(prix, eta, dist, coutKm), prix);
+}
+document.getElementById('btnRecalc').addEventListener('click', recalc);
+['fPrix', 'fEta', 'fDist', 'fCoutKm'].forEach((id) => document.getElementById(id).addEventListener('input', recalc));
+
+/* ---- Mode rapide ---- */
+let qEta = 5;
+document.getElementById('qEtaRow').addEventListener('click', (e) => {
+  const b = e.target.closest('.chip'); if (!b) return;
+  qEta = Number(b.dataset.min);
+  document.querySelectorAll('#qEtaRow .chip').forEach((c) => c.classList.toggle('on', c === b));
+  quickVerdict();
+});
+['qPrix', 'qDist'].forEach((id) => document.getElementById(id).addEventListener('input', quickVerdict));
+function quickVerdict() {
+  const prix = parseFloat(String(document.getElementById('qPrix').value).replace(',', '.'));
+  const dist = parseFloat(String(document.getElementById('qDist').value).replace(',', '.')) || 0;
+  const el = document.getElementById('qVerdict');
+  if (!(prix > 0)) { el.textContent = 'Renseigne prix + approche + distance → verdict instantané.'; return; }
+  const v = computeVerdict(prix, qEta, dist, 0.30);
+  const zm = zoneMeta(v.zone);
+  el.innerHTML = zm.emoji + ' <b style="color:' + zm.color + '">' + zm.label + '</b> — ' + v.taux.toFixed(2) + ' €/h (' + v.totalMin + ' min estimées : ' + qEta + ' min d’approche + ~' + v.trajetMin + ' min de trajet)';
+}
+
+/* ---- Boutons finaux ---- */
+document.getElementById('btnPrefill').addEventListener('click', () => {
+  const p = document.getElementById('fPrix').value || document.getElementById('qPrix').value || '0';
+  if (confirm('▶ Lancer le chrono maintenant avec ' + p + ' € (plateforme détectée depuis l’offre) ?')) {
+    alert('✅ Dans GH prod : startTimer(' + p + ' €, plateforme) → écran Chrono, prix pré-rempli, halo actif.');
+  }
+});
+document.getElementById('btnNext').addEventListener('click', () => {
+  currentOffer = currentOffer === 'bonne' ? 'mauvaise' : 'bonne';
+  sel();
+  document.getElementById('verdict').classList.add('hidden');
+  document.getElementById('parsedCard').classList.add('hidden');
+  document.getElementById('ocrStatus').textContent = 'En attente d’une capture…';
+  document.getElementById('progBar').style.width = '0';
+});
+
+drawOffer();
+</script>
+</body>
+</html>

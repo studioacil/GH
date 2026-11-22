@@ -1,6 +1,6 @@
 /* GH — service worker : cache « app shell » en cache-first pour fonctionner hors-ligne.
    Incrémenter CACHE à chaque déploiement (les anciens caches sont purgés au activate). */
-const CACHE = 'gh-shell-v1';
+const CACHE = 'gh-shell-v2';
 const SHELL = [
   './',
   './index.html',
@@ -40,8 +40,22 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
+  // Android share_target : « Partager → GH » depuis une capture d'offre → image à analyser
+  if (e.request.method === 'POST' && url.searchParams.get('share') === 'image') {
+    // (branche POST : ne pas return avant respondWith)
+    e.respondWith(Response.redirect('./index.html?share=image'));
+    e.waitUntil((async () => {
+      try {
+        const data = await e.request.formData();
+        const file = data.get('media');
+        const client = await self.clients.get(e.resultingClientId);
+        if (client && file && file.size) client.postMessage({ type: 'share-image', file });
+      } catch (err) { /* ignore */ }
+    })());
+    return;
+  }
+  if (e.request.method !== 'GET') return;
   if (url.origin !== location.origin) return; // jamais de cache cross-origin
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((hit) => {
