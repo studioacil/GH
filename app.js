@@ -523,12 +523,16 @@ const offerVerdict = $('offerVerdict'), offerZone = $('offerZone'), offerTaux = 
 const offerStartBtn = $('offerStartBtn'), offerCloseBtn = $('offerCloseBtn');
 let offerRawText = '';
 
+// Base absolue de l'app (ex. '/GH/' sur GitHub Pages, '/' en local) :
+// INDISPENSABLE pour les chemins du worker OCR (dans un worker, les chemins relatifs
+// se résolvent par rapport à l'URL du worker, pas de la page → 404 sous /GH/).
+const APP_BASE = location.pathname.replace(/[^/]*$/, '');
 function loadTesseract() {
   if (!loadTesseract.p) {
     loadTesseract.p = new Promise((res, rej) => {
       if (window.Tesseract) return res(window.Tesseract);
       const s = document.createElement('script');
-      s.src = 'vendor/tesseract/tesseract.min.js';
+      s.src = APP_BASE + 'vendor/tesseract/tesseract.min.js';
       s.onload = () => res(window.Tesseract);
       s.onerror = () => rej(new Error('vendor/tesseract/tesseract.min.js introuvable'));
       document.head.appendChild(s);
@@ -543,9 +547,9 @@ function prewarmOCR() {
   if (ocrWorker || ocrWorkerPromise) return ocrWorkerPromise;
   ocrWorkerPromise = loadTesseract()
     .then((T) => T.createWorker(['eng', 'fra'], 1, {
-      workerPath: 'vendor/tesseract/worker.min.js',
-      corePath: 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
-      langPath: 'vendor/tesseract/lang',
+      workerPath: APP_BASE + 'vendor/tesseract/worker.min.js',
+      corePath: APP_BASE + 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
+      langPath: APP_BASE + 'vendor/tesseract/lang',
     }))
     .then((w) => { ocrWorker = w; return w; })
     .catch(() => { ocrWorkerPromise = null; });
@@ -2366,7 +2370,22 @@ function updateInstallHint() {
 // Le service worker exige un contexte sécurisé (https ou localhost) : sur le LAN en HTTP
 // il ne s'enregistre pas, mais le raccourci « écran d'accueil » fonctionne quand même.
 if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
-  window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
+  window.addEventListener('load', () => {
+    // updateViaCache 'none' : le navigateur re-vérifie sw.js à chaque ouverture →
+    // la PWA installée se met à jour TOUTE SEULE après chaque déploiement Pages.
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then((reg) => {
+      reg.addEventListener('updatefound', () => {
+        const sw = reg.installing;
+        if (!sw) return;
+        sw.addEventListener('statechange', () => {
+          if (sw.state === 'installed' && navigator.serviceWorker.controller) {
+            showToast('⬇️ Mise à jour de GH installée — rechargement…');
+            setTimeout(() => { if (!sessionStorage.getItem('ghReloaded')) { sessionStorage.setItem('ghReloaded', '1'); location.reload(); } }, 800);
+          }
+        });
+      });
+    }).catch(() => {});
+  });
 }
 window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferredInstallPrompt = e; updateInstallHint(); });
 window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; updateInstallHint(); });

@@ -146,6 +146,10 @@
     Verdict : taux = prix ÷ (approche + trajet) → zone GH (30 €/h, seuils 22,5 / 37,5 / 60).
   </p>
 
+<script>
+  // base absolue de l'app (pour /GH/ sur Pages) : les chemins du worker OCR doivent être absolus
+  const VB = location.pathname.replace(/maquette-ocr.*$/, '');
+</script>
 <script src="../vendor/tesseract/tesseract.min.js"></script>
 <script>
 'use strict';
@@ -224,9 +228,9 @@ async function runOCR(source) {
   status.textContent = 'Chargement du moteur OCR (local)…';
   bar.style.width = '8%';
   const worker = await Tesseract.createWorker(['eng', 'fra'], 1, {
-    workerPath: '../vendor/tesseract/worker.min.js',
-    corePath: '../vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
-    langPath: '../vendor/tesseract/lang',
+    workerPath: VB + 'vendor/tesseract/worker.min.js',
+    corePath: VB + 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
+    langPath: VB + 'vendor/tesseract/lang',
     logger: (m) => { if (m.status === 'recognizing text') { bar.style.width = (8 + (m.progress || 0) * 88) + '%'; status.textContent = 'OCR en cours… ' + Math.round((m.progress || 0) * 100) + ' %'; } },
   });
   // inversion pour fiabilité

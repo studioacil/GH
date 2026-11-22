@@ -1,6 +1,6 @@
 /* GH — service worker : cache « app shell » en cache-first pour fonctionner hors-ligne.
    Incrémenter CACHE à chaque déploiement (les anciens caches sont purgés au activate). */
-const CACHE = 'gh-shell-v2';
+const CACHE = 'gh-shell-v3'; // v3 : network-first pour le code (auto-update), cache-first pour vendor/sons/icons
 const SHELL = [
   './',
   './index.html',
@@ -57,6 +57,20 @@ self.addEventListener('fetch', (e) => {
   }
   if (e.request.method !== 'GET') return;
   if (url.origin !== location.origin) return; // jamais de cache cross-origin
+  // Network-first pour le code (html/js/css) : la PWA se met à jour toute seule
+  // dès le déploiement (Pages), le cache ne sert que hors-ligne.
+  const isCode = e.request.mode === 'navigate' || e.request.destination === 'document' ||
+    e.request.destination === 'script' || e.request.destination === 'style';
+  if (isCode) {
+    e.respondWith(
+      fetch(e.request).then((res) => {
+        if (res && res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+        return res;
+      }).catch(() => caches.match(e.request).then((hit) => hit || caches.match('./index.html')))
+    );
+    return;
+  }
+  // Cache-first pour le lourd et statique (vendor/tesseract, sons, icons, images)
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((hit) => {
       if (hit) return hit;
@@ -66,11 +80,7 @@ self.addEventListener('fetch', (e) => {
           caches.open(CACHE).then((c) => c.put(e.request, copy));
         }
         return res;
-      }).catch(() => {
-        // hors-ligne et pas en cache : pour une navigation, renvoyer l'app shell
-        if (e.request.mode === 'navigate') return caches.match('./index.html');
-        return Response.error();
-      });
+      }).catch(() => Response.error());
     })
   );
 });
