@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#05060a" />
+  <meta name="color-scheme" content="dark light" />
+  <title>GH · Maquette 2027</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- ===== SPRITE DE LOGOS SVG MAISON ===== -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="gDouble" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#8fd8ff"/><stop offset="1" stop-color="#0a84ff"/>
+      </linearGradient>
+      <linearGradient id="gStar" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ffe27a"/><stop offset="1" stop-color="#ffb800"/>
+      </linearGradient>
+    </defs>
+    <!-- zones -->
+    <symbol id="i-zone-double" viewBox="0 0 24 24">
+      <path d="M12 1.6 22.4 12 12 22.4 1.6 12Z" fill="url(#gDouble)"/>
+      <path d="M12 6.8 17.2 12 12 17.2 6.8 12Z" fill="#fff" opacity=".9"/>
+    </symbol>
+    <symbol id="i-zone-etoile" viewBox="0 0 24 24">
+      <path d="M12 1.6l3.2 6.4 7.1 1-5.1 5 1.2 7.1L12 17.8l-6.4 3.3 1.2-7.1-5.1-5 7.1-1z" fill="url(#gStar)" stroke="#a87400" stroke-width=".8"/>
+    </symbol>
+    <symbol id="i-zone-verte" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="10" fill="#30d158"/>
+      <circle cx="8.8" cy="8.8" r="3.4" fill="#fff" opacity=".38"/>
+    </symbol>
+    <symbol id="i-zone-rouge" viewBox="0 0 24 24">
+      <path d="M10.3 3.2c.7-1.2 2.7-1.2 3.4 0l8.2 14.2c.7 1.2-.2 2.7-1.5 2.7H4.6c-1.3 0-2.2-1.5-1.5-2.7z" fill="#ff453a"/>
+      <rect x="11" y="8.4" width="2" height="5.6" rx="1" fill="#fff"/>
+      <circle cx="12" cy="17" r="1.3" fill="#fff"/>
+    </symbol>
+    <symbol id="i-zone-noire" viewBox="0 0 24 24">
+      <path d="M12 2.4c-4.7 0-8.1 3.2-8.1 7.6 0 2.5 1.1 4.4 2.9 5.6v3c0 .9.7 1.7 1.7 1.7h7c1 0 1.7-.8 1.7-1.7v-3c1.8-1.2 2.9-3.1 2.9-5.6 0-4.4-3.4-7.6-8.1-7.6z" fill="#3a3a3e" stroke="#98989d" stroke-width="1.4"/>
+      <circle cx="8.5" cy="10.3" r="2.6" fill="#0b0b0d"/>
+      <circle cx="15.5" cy="10.3" r="2.6" fill="#0b0b0d"/>
+      <path d="M12 12.7l-1.3 2.5h2.6z" fill="#0b0b0d"/>
+      <path d="M9.1 16.6v2.5M12 16.6v2.9M14.9 16.6v2.5" stroke="#0b0b0d" stroke-width="1.3" stroke-linecap="round"/>
+    </symbol>
+    <!-- plateformes -->
+    <symbol id="i-uber" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="11" fill="#000" stroke="#5a5a5e" stroke-width="1"/>
+      <text x="12" y="16.8" text-anchor="middle" font-family="system-ui,sans-serif" font-size="13" font-weight="800" fill="#fff">U</text>
+    </symbol>
+    <symbol id="i-bolt" viewBox="0 0 24 24">
+      <path d="M13.6 1.4 4 13.6c-.4.6 0 1.4.8 1.4h5.2L8.6 22.6c-.2.8.9 1.3 1.5.6L20 10.8c.5-.6 0-1.4-.8-1.4h-5.2l1.4-7.2c.2-.8-.9-1.3-1.8-.8z" fill="#34c759"/>
+    </symbol>
+    <!-- phases -->
+    <symbol id="i-pin" viewBox="0 0 24 24">
+      <path d="M12 1.8a7.2 7.2 0 0 0-7.2 7.2c0 5.2 7.2 13.2 7.2 13.2s7.2-8 7.2-13.2A7.2 7.2 0 0 0 12 1.8z" fill="#8e8e93"/>
+      <circle cx="12" cy="9" r="2.7" fill="#fff"/>
+    </symbol>
+    <symbol id="i-car" viewBox="0 0 24 24">
+      <path d="M4.6 11.2 6.2 6.7A2.2 2.2 0 0 1 8.3 5.2h7.4a2.2 2.2 0 0 1 2.1 1.5l1.6 4.5c1.3.3 2.4 1.5 2.4 2.9v3.4a1 1 0 0 1-1 1h-1.3a2.6 2.6 0 0 1-5 0H9.9a2.6 2.6 0 0 1-5 0H3.6a1 1 0 0 1-1-1v-3.4c0-1.4 1.1-2.6 2-2.9z" fill="#8e8e93"/>
+      <path d="M6.6 11.2l1.3-3.6a1.5 1.5 0 0 1 1.4-1h5.2a1.5 1.5 0 0 1 1.4 1l1.3 3.6z" fill="#d1d1d6"/>
+      <circle cx="7.4" cy="18.2" r="2" fill="#3a3a3c"/><circle cx="16.6" cy="18.2" r="2" fill="#3a3a3c"/>
+    </symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24">
+      <path d="M8.5 7V6a3.5 3.5 0 0 1 7 0v1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <path d="M4.5 7h15l1 12.2a2.3 2.3 0 0 1-2.3 2.5H5.8a2.3 2.3 0 0 1-2.3-2.5z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-cloche" viewBox="0 0 24 24">
+      <path d="M4 17.5h16M5 17.5a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="12" cy="8.6" r="1.6" fill="currentColor"/>
+      <path d="M3 20.5h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-box" viewBox="0 0 24 24">
+      <path d="M12 2.6 21 7v10l-9 4.4L3 17V7z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      <path d="M3 7l9 4.4L21 7M12 11.4v10" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+    </symbol>
+    <!-- onglets & UI -->
+    <symbol id="i-play" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9.6" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M10 8.4v7.2c0 .9 1 1.5 1.8 1l5.3-3.6c.7-.5.7-1.5 0-2L11.8 7.4c-.8-.5-1.8.1-1.8 1z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-doc" viewBox="0 0 24 24">
+      <rect x="4.5" y="2.8" width="15" height="18.4" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M8.2 8h7.6M8.2 12h7.6M8.2 16h4.6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-sliders" viewBox="0 0 24 24">
+      <path d="M3.5 7h8M16.5 7h4M3.5 12h4M12.5 12h8M3.5 17h10M18.5 17h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <circle cx="14" cy="7" r="2.3" fill="currentColor"/><circle cx="10" cy="12" r="2.3" fill="currentColor"/><circle cx="16" cy="17" r="2.3" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-stop" viewBox="0 0 24 24"><rect x="5.5" y="5.5" width="13" height="13" rx="3.5" fill="currentColor"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24">
+      <path d="M12 3.5v10.5m0 0 4.2-4.2M12 14 7.8 9.8" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4.5 16.5v2a2.5 2.5 0 0 0 2.5 2.5h10a2.5 2.5 0 0 0 2.5-2.5v-2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-up" viewBox="0 0 24 24">
+      <path d="M12 20.5V10m0 0 4.2 4.2M12 10 7.8 14.2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M4.5 7.5v-2A2.5 2.5 0 0 1 7 3h10a2.5 2.5 0 0 1 2.5 2.5v2" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="4.4" fill="currentColor"/>
+      <path d="M12 2.5v2.6M12 18.9v2.6M2.5 12h2.6M18.9 12h2.6M5 5l1.8 1.8M17.2 17.2 19 19M19 5l-1.8 1.8M6.8 17.2 5 19" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24">
+      <path d="M20.6 14.8A8.8 8.8 0 0 1 9.2 3.4a.7.7 0 0 0-.9-.9 10 10 0 1 0 13.2 13.2.7.7 0 0 0-.9-.8z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9.4" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M12 6.8V12l3.4 2.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </symbol>
+    <symbol id="i-euro" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9.6" fill="none" stroke="currentColor" stroke-width="2"/>
+      <text x="12" y="16.4" text-anchor="middle" font-family="system-ui,sans-serif" font-size="12" font-weight="800" fill="currentColor">€</text>
+    </symbol>
+    <symbol id="i-target" viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9.4" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="12" cy="12" r="5.4" fill="none" stroke="currentColor" stroke-width="2"/>
+      <circle cx="12" cy="12" r="2" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-user" viewBox="0 0 24 24">
+      <circle cx="12" cy="8" r="4" fill="currentColor"/>
+      <path d="M4.5 20.5a7.5 7.5 0 0 1 15 0z" fill="currentColor"/>
+    </symbol>
+    <symbol id="i-cal" viewBox="0 0 24 24">
+      <rect x="3.5" y="5" width="17" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2"/>
+      <path d="M3.5 9.5h17M8 2.8V6M16 2.8V6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </symbol>
+    <symbol id="i-chart" viewBox="0 0 24 24">
+      <path d="M4 20V4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+      <rect x="7" y="12" width="3.4" height="8" rx="1" fill="currentColor"/>
+      <rect x="12.3" y="7" width="3.4" height="13" rx="1" fill="currentColor"/>
+      <rect x="17.6" y="9.5" width="3.4" height="10.5" rx="1" fill="currentColor" opacity=".55"/>
+    </symbol>
+  </svg>
+
+  <!-- Halo ambiant -->
+  <div class="ambient" id="ambient"></div>
+
+  <!-- ============ ÉCRAN COURSE ============ -->
+  <section class="screen active" id="scr-course">
+    <header class="nav">
+      <div class="brand">GH <span class="demoBadge hidden">démo ×10</span></div>
+      <div class="navRight">
+        <label class="chip demoChip" title="Le chrono avance 10× plus vite"><input type="checkbox" class="demoSpeed" /> démo ×10</label>
+        <span class="chip"><svg class="ico"><use href="#i-user"/></svg> default</span>
+        <span class="chip" id="themeChip">auto</span>
+        <span class="chip chipPlat" id="chipPlat"><svg class="ico"><use href="#i-uber"/></svg> Uber · VTC</span>
+      </div>
+    </header>
+
+    <div class="hero">
+      <input id="priceInput" class="heroInput" inputmode="decimal" placeholder="0,00 €" autocomplete="off" />
+    </div>
+
+    <div class="zonePills" id="zonePills"></div>
+
+    <div class="ctaCol">
+      <button class="cta ctaUber" id="btnUber"><svg class="ico"><use href="#i-uber"/></svg> Chrono Uber</button>
+      <button class="cta ctaBolt" id="btnBolt"><svg class="ico"><use href="#i-bolt"/></svg> Chrono Bolt</button>
+    </div>
+
+    <p class="footHint">Le halo de fond suivra ta zone en direct pendant le chrono.</p>
+  </section>
+
+  <!-- ============ ÉCRAN CHRONO ============ -->
+  <section class="screen" id="scr-chrono">
+    <header class="nav">
+      <div class="brand">GH <span class="demoBadge hidden">démo ×10</span></div>
+      <div class="navRight">
+        <span class="chip chipPlat" id="chronoPlat"><svg class="ico"><use href="#i-uber"/></svg> Uber</span>
+        <label class="chip demoChip"><input type="checkbox" class="demoSpeed" /> démo ×10</label>
+      </div>
+    </header>
+
+    <div class="seg2 chronoSeg">
+      <button class="segBtn on" id="segZones"><svg class="ico"><use href="#i-clock"/></svg> Temps</button>
+      <button class="segBtn" id="segEuro"><svg class="ico"><use href="#i-euro"/></svg> Euro</button>
+    </div>
+
+    <div class="ringWrap" id="ringWrap">
+      <div class="ringStage">
+        <div class="ring" id="ring">
+          <div class="ringProgress" id="ringProgress"></div>
+          <div class="ringHole">
+            <div class="clock" id="clock"><span class="cMin" id="clockMin">00</span><span class="cSep">:</span><span class="cSec" id="clockSec">00</span></div>
+            <div class="euroCenter" id="euroCenter" style="display:none"><span class="eInt" id="euroInt">0</span><span class="eDec" id="euroDec">,00</span><span class="eCur">€</span></div>
+            <div class="clockZone" id="clockZone">—</div>
+          </div>
+        </div>
+        <div class="orbiter" id="orbiter"><span class="orbDot" id="orbDot"></span></div>
+      </div>
+    </div>
+
+    <div class="statusLine" id="statusLine">Saisis un prix puis lance un chrono.</div>
+    <div class="phaseChips" id="phaseChips"></div>
+
+    <div class="ctaCol">
+      <button class="cta ctaPhase" id="btnPhase"><svg class="ico"><use href="#i-car"/></svg> Client pris en charge</button>
+      <button class="cta ctaStop" id="btnStop"><svg class="ico"><use href="#i-stop"/></svg> Terminer &amp; enregistrer</button>
+      <button class="cta ctaGhost" id="btnCancel">Annuler</button>
+    </div>
+  </section>
+
+  <!-- ============ ÉCRAN HISTORIQUE ============ -->
+  <section class="screen" id="scr-history">
+    <header class="nav">
+      <div class="brand">GH</div>
+      <div class="navRight zoneToggles" id="zoneToggles">
+        <button class="zt on" data-zone="double" title="Double étoile"><svg class="ico"><use href="#i-zone-double"/></svg></button>
+        <button class="zt on" data-zone="etoile" title="Étoile"><svg class="ico"><use href="#i-zone-etoile"/></svg></button>
+        <button class="zt on" data-zone="verte" title="Verte"><svg class="ico"><use href="#i-zone-verte"/></svg></button>
+        <button class="zt on" data-zone="rouge" title="Rouge"><svg class="ico"><use href="#i-zone-rouge"/></svg></button>
+        <button class="zt on" data-zone="noire" title="Noire"><svg class="ico"><use href="#i-zone-noire"/></svg></button>
+      </div>
+    </header>
+
+    <select id="periodSel" class="selectGlass"></select>
+
+    <div class="glass recap" id="recap"></div>
+    <div class="glass etat" id="etat"></div>
+    <ul class="rides" id="ridesList"></ul>
+
+    <div class="rowBtns">
+      <button class="miniBtn glassBtn" id="btnExportJson"><svg class="ico"><use href="#i-down"/></svg> Export JSON</button>
+      <button class="miniBtn glassBtn" id="btnExportCsv"><svg class="ico"><use href="#i-down"/></svg> Export CSV</button>
+      <button class="miniBtn glassBtn" id="btnImportCsv"><svg class="ico"><use href="#i-up"/></svg> Import CSV Uber</button>
+      <button class="miniBtn glassBtn" id="btnResetDemo"><svg class="ico"><use href="#i-clock"/></svg> Données de démo</button>
+    </div>
+    <input type="file" id="importCsvFile" accept=".csv,text/csv" class="hidden" />
+  </section>
+
+  <!-- ============ ÉCRAN RÉGLAGES ============ -->
+  <section class="screen" id="scr-settings">
+    <header class="nav"><div class="brand">GH</div></header>
+    <div class="glass settingsCard">
+      <label class="fld"><span>Apparence</span><div class="seg2" id="themeSeg">
+        <button class="segBtn" data-theme-opt="light"><svg class="ico"><use href="#i-sun"/></svg> Jour</button>
+        <button class="segBtn" data-theme-opt="dark"><svg class="ico"><use href="#i-moon"/></svg> Nuit</button>
+        <button class="segBtn on" data-theme-opt="auto"><svg class="ico"><use href="#i-clock"/></svg> Auto</button>
+      </div></label>
+      <label class="fld"><span>Mode</span><div class="seg2">
+        <button class="segBtn on"><svg class="ico"><use href="#i-car"/></svg> VTC</button>
+        <button class="segBtn"><svg class="ico"><use href="#i-bag"/></svg> Livreur</button>
+      </div></label>
+      <label class="fld"><span>Plateforme</span><div class="seg2">
+        <button class="segBtn on"><svg class="ico"><use href="#i-uber"/></svg> Uber</button>
+        <button class="segBtn"><svg class="ico"><use href="#i-bolt"/></svg> Bolt</button>
+      </div></label>
+      <label class="fld"><span>GH (€/h)</span><input class="inpGlass" value="30" inputmode="decimal" /></label>
+      <label class="fld"><span>Seuil noire (€/h)</span><input class="inpGlass" value="22,50" inputmode="decimal" /></label>
+      <label class="fld"><span>Seuil étoile (€/h)</span><input class="inpGlass" value="37,50" inputmode="decimal" /></label>
+      <label class="fld"><span>Seuil double étoile (€/h)</span><input class="inpGlass" value="60" inputmode="decimal" /></label>
+      <button class="cta ctaGhost">Réinitialiser aux valeurs d'origine</button>
+    </div>
+  </section>
+
+  <!-- ============ TAB BAR ============ -->
+  <nav class="tabbar" id="tabbar">
+    <button class="tab active" data-scr="scr-course"><span class="tabIco"><svg class="ico"><use href="#i-play"/></svg></span><span>Course</span></button>
+    <button class="tab" data-scr="scr-history"><span class="tabIco"><svg class="ico"><use href="#i-doc"/></svg></span><span>Historique</span></button>
+    <button class="tab" data-scr="scr-settings"><span class="tabIco"><svg class="ico"><use href="#i-sliders"/></svg></span><span>Réglages</span></button>
+  </nav>
+
+  <div class="toast" id="toast"></div>
+  <script src="maquette.js"></script>
+</body>
+</html>

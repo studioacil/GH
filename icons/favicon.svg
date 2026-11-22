@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#0b0b10"/>
+  <g fill="none" stroke-width="7">
+    <path d="M 32 12 A 20 20 0 0 1 49.3 22" stroke="#5ac8fa"/>
+    <path d="M 49.3 22 A 20 20 0 0 1 52 32" stroke="#ffd60a"/>
+    <path d="M 52 32 A 20 20 0 0 1 43.3 47.3" stroke="#30d158"/>
+    <path d="M 43.3 47.3 A 20 20 0 0 1 20.7 47.3" stroke="#ff453a"/>
+    <path d="M 20.7 47.3 A 20 20 0 0 1 12 32 A 20 20 0 0 1 32 12" stroke="#3a3a3e"/>
+  </g>
+  <circle cx="32" cy="12" r="4.5" fill="#fff"/>
+  <text x="32" y="40" font-family="system-ui, sans-serif" font-size="17" font-weight="800" fill="#f5f5fa" text-anchor="middle">GH</text>
+</svg>
