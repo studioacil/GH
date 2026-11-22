@@ -225,7 +225,7 @@ async function runOCR(source) {
   bar.style.width = '8%';
   const worker = await Tesseract.createWorker(['eng', 'fra'], 1, {
     workerPath: '../vendor/tesseract/worker.min.js',
-    corePath: '../vendor/tesseract/tesseract-core.wasm',
+    corePath: '../vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
     langPath: '../vendor/tesseract/lang',
     logger: (m) => { if (m.status === 'recognizing text') { bar.style.width = (8 + (m.progress || 0) * 88) + '%'; status.textContent = 'OCR en cours… ' + Math.round((m.progress || 0) * 100) + ' %'; } },
   });

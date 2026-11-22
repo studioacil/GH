@@ -544,7 +544,7 @@ function prewarmOCR() {
   ocrWorkerPromise = loadTesseract()
     .then((T) => T.createWorker(['eng', 'fra'], 1, {
       workerPath: 'vendor/tesseract/worker.min.js',
-      corePath: 'vendor/tesseract/tesseract-core.wasm',
+      corePath: 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
       langPath: 'vendor/tesseract/lang',
     }))
     .then((w) => { ocrWorker = w; return w; })
