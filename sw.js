@@ -1,6 +1,6 @@
 /* GH — service worker : cache « app shell » en cache-first pour fonctionner hors-ligne.
    Incrémenter CACHE à chaque déploiement (les anciens caches sont purgés au activate). */
-const CACHE = 'gh-shell-v4'; // v4 : vendor OCR pré-caché à l'installation (1er OCR instantané ensuite)
+const CACHE = 'gh-shell-v5'; // v5 : precache fichier par fichier (un échec ne bloque plus l'install du SW)
 const SHELL = [
   './',
   './index.html',
@@ -38,9 +38,9 @@ const SHELL = [
 self.addEventListener('install', (e) => {
   e.waitUntil(
     caches.open(CACHE)
-      .then((c) => c.addAll(SHELL))
+      // fichier par fichier : un gros fichier qui échoue ne doit pas faire échouer TOUT l'install
+      .then((c) => Promise.allSettled(SHELL.map((u) => c.add(u))))
       .then(() => self.skipWaiting())
-      .catch(() => { /* pré-cache partiel : le réseau servira de secours */ })
   );
 });
 

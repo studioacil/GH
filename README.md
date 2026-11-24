@@ -39,7 +39,7 @@ GH_TOKEN=ghp_xxxx ./tools/deploy.sh     # le token reste sur ta machine
 - App de production : **http://localhost:8471/** (HTTP) et **https://localhost:8472/** (HTTPS, port PWA)
 - Sur iPhone (même Wi-Fi que le Mac) : **http://192.168.1.70:8471/** ou **https://192.168.1.70:8472/**
 - Maquette interactive 2027 (référence design, mode démo ×10) : **http://localhost:8471/maquette-2027/**
-- Maquette **mode « OCR »** (analyse d'offre façon Ride_IQ, OCR 100 % local via Tesseract.js vendored) :
+- Maquette **mode « OCR »** : **http://localhost:8471/maquette-ocr/** — spec `V2-OFFRE.md` ; corrections en cours : **`CORRECTIONS.md`**
   **http://localhost:8471/maquette-ocr/** — spec dans `V2-OFFRE.md`
 - **Mode OCR en prod (V2)** : bouton 📸 sur l'écran Course → capture → OCR local (Tesseract préchauffé,
   ~1–2 s) → verdict de zone → « ▶ Lancer le chrono (prix) ». Sur **Android** : `share_target` dans le

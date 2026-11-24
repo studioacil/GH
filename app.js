@@ -559,8 +559,14 @@ function prewarmOCR() {
 async function getOcrWorker() {
   if (ocrWorker) return ocrWorker;
   if (!ocrWorkerPromise) prewarmOCR();
-  return ocrWorkerPromise;
+  try {
+    return await ocrWorkerPromise;
+  } catch (e) {
+    throw new Error('création du worker OCR : ' + (e && e.message ? e.message : e));
+  }
 }
+// capture des erreurs async pour le diagnostic de la modale OCR
+window.addEventListener('unhandledrejection', (e) => { window.__lastOcrErr = String((e.reason && e.reason.message) || e.reason || ''); });
 // OCR sur une image : canvas inversé (Tesseract préfère foncé sur clair), image réduite à 1200 px
 async function ocrImageEl(img) {
   offerStatus.textContent = 'Chargement du moteur OCR (local)…';
@@ -584,7 +590,13 @@ async function ocrImageEl(img) {
     d.data[i] = 255 - d.data[i]; d.data[i + 1] = 255 - d.data[i + 1]; d.data[i + 2] = 255 - d.data[i + 2];
   }
   x.putImageData(d, 0, 0);
-  const { data: { text } } = await worker.recognize(c); // worker réutilisé (pas de terminate)
+  let text;
+  try {
+    const r = await worker.recognize(c); // worker réutilisé (pas de terminate)
+    text = r.data.text;
+  } catch (e) {
+    throw new Error('reconnaissance : ' + (e && e.message ? e.message : e));
+  }
   offerProg.style.width = '100%';
   offerStatus.textContent = 'OCR terminé ✔ — corrige les champs si besoin.';
   return text;
@@ -725,7 +737,8 @@ async function handleOfferFile(file) {
     refineOfferWithRouting(); // trafic réel si clé Google renseignée (async, non bloquant)
   } catch (e) {
     offerScan.style.display = 'none';
-    offerStatus.textContent = 'OCR indisponible (' + e.message + ') — remplis les champs à la main.';
+    const extra = window.__lastOcrErr ? ' [' + window.__lastOcrErr + ']' : '';
+    offerStatus.textContent = 'OCR indisponible : ' + e.message + extra + ' — remplis les champs à la main.';
     renderOfferVerdict();
   }
 }
