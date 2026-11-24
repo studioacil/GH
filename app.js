@@ -551,6 +551,7 @@ function prewarmOCR() {
       workerPath: APP_BASE + 'vendor/tesseract/worker.min.js',
       corePath: APP_BASE + 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
       langPath: APP_BASE + 'vendor/tesseract/lang',
+      gzip: false, // nos fichiers lang sont des .traineddata NON compressés (sinon le worker demande .traineddata.gz → 404)
     }))
     .then((w) => { ocrWorker = w; return w; })
     .catch(() => { ocrWorkerPromise = null; });

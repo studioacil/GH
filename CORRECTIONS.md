@@ -8,9 +8,10 @@ Symptôme : « OCR indisponible (cannot read properties of undefined) », puis t
 | 1 | `corePath` pointait sur le `.wasm` au lieu du dossier contenant le glue `tesseract-core.wasm.js` | `corePath` = dossier + 4 variantes core vendored | ✅ c74d615 |
 | 2 | Chemins relatifs du worker cassés sous le sous-dossier `/GH/` (résolus par rapport à l'URL du worker) | `APP_BASE` absolu partout (workerPath/corePath/langPath) | ✅ 5ef19f3 |
 | 3 | Image pas encore décodée quand l'OCR la lit (canvas vide) | `await offerImg.onload` avant OCR | ✅ f1fb8af |
-| 4 | **Precache SW de 33 Mo en un `addAll` : si un fichier échoue, TOUT l'install du SW échoue** → plus de SW = partage auto mort + cache KO + pas de mise à jour auto | precache fichier par fichier (`allSettled`), cache v5 | 🔧 en cours |
-| 5 | PWA du Pixel = ancienne version en cache | network-first pour le code + `updateViaCache:'none'` + toast « Mise à jour installée » ; si bloqué : supprimer/réinstaller l'icône | 🔧 dépend de 4 |
-| 6 | Peu de visibilité sur l'erreur exacte | messages d'étape dans la modale (script → worker → reconnaissance) + capture `unhandledrejection` | 🔧 en cours |
+| 4 | **Precache SW de 33 Mo en un `addAll` : si un fichier échoue, TOUT l'install du SW échoue** → plus de SW = partage auto mort + cache KO + pas de mise à jour auto | precache fichier par fichier (`allSettled`), cache v5 | ✅ f9fa5aa |
+| 5 | **ROOT CAUSE probable : `gzip` défaut à true dans tesseract.js v5 → le worker demande `eng.traineddata.gz` → 404 chez nous → init worker KO → « undefined »** | `gzip: false` dans `createWorker` (nos fichiers sont des `.traineddata` non compressés) | ✅ poussé |
+| 6 | PWA du Pixel = ancienne version en cache | network-first pour le code + `updateViaCache:'none'` + toast « Mise à jour installée » ; si bloqué : supprimer/réinstaller l'icône | ✅ f9fa5aa |
+| 7 | Peu de visibilité sur l'erreur exacte | messages d'étape dans la modale + page d'autotest `maquette-ocr/test.html` (étapes ✅/❌ visibles sur le téléphone) | ✅ poussé |
 
 **Vérification** : Pixel → icône GH → Course → 📸 → capture de la pellicule → verdict zone en < 3 s.
 Si encore KO : noter le message exact de l'étape affichée.

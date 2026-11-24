@@ -231,6 +231,7 @@ async function runOCR(source) {
     workerPath: VB + 'vendor/tesseract/worker.min.js',
     corePath: VB + 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
     langPath: VB + 'vendor/tesseract/lang',
+    gzip: false, // .traineddata non compressés côté serveur
     logger: (m) => { if (m.status === 'recognizing text') { bar.style.width = (8 + (m.progress || 0) * 88) + '%'; status.textContent = 'OCR en cours… ' + Math.round((m.progress || 0) * 100) + ' %'; } },
   });
   // inversion pour fiabilité
