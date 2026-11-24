@@ -638,37 +638,68 @@ function parseOfferText(text) {
   const t = String(text);
   const lines = t.split('\n').map((l) => l.trim()).filter(Boolean);
   const out = { prix: null, eta: null, dist: null, surge: null, pickup: '', dest: '' };
-  // PRIX : ligne avec €/EUR en priorité, sinon 1er nombre à 2 décimales des 8 premières lignes
-  const head = lines.slice(0, 8);
-  const euroLine = head.find((l) => /€|eur/i.test(l)) || head.find((l) => /\d[.,]\d{2}/.test(l)) || '';
-  const pm = euroLine.match(/(\d{1,3}(?:[ \u00A0]\d{3})*)[.,](\d{2})\s*(?:€|eur)?/i) || t.match(/(\d{1,3}(?:[ \u00A0]\d{3})*)[.,](\d{2})\s*€/);
-  if (pm) out.prix = parseFloat(pm[1].replace(/[ \u00A0]/g, '') + '.' + pm[2]);
-  // ETA : "5 min" / "5 mn"
-  const em = t.match(/(\d{1,2})\s*(?:min|mn)\b/i);
-  if (em) out.eta = parseInt(em[1], 10);
-  // DISTANCE : "3,2 km" / "3.2 km" / "2 mi" (décimales conservées, \b évite de lire "min" comme "mi")
-  const dm = t.match(/(\d{1,3}(?:[.,]\d+)?)\s*(kms|kilom|km|miles|mi)\b/i);
-  if (dm) out.dist = parseFloat(dm[1].replace(',', '.')) * (/^mi/i.test(dm[2]) ? 1.609 : 1);
-  // SURGE : "x1,5" / "×2" / "1,5x" — le x doit précéder un chiffre SANS être collé à une lettre (sinon "UberX" = surge !)
+  const NUM = /(\d{1,3}(?:[ \u00A0]\d{3})*[.,]\d{2})/g;
+  const lastNumBefore = (line, idx) => {
+    const nums = [...line.slice(0, idx).matchAll(/(\d{1,3}(?:[ \u00A0]\d{3})*(?:[.,]\d+)?)/g)];
+    return nums.length ? nums[nums.length - 1][1] : null;
+  };
+  // PRIX : ligne avec €/EUR → nombre juste avant le € ; sinon PLUS GRAND montant des 12 premières
+  // lignes (le prix est le plus gros chiffre de l'écran), en excluant heure/note/min/km.
+  const head = lines.slice(0, 12);
+  const euroLine = head.find((l) => /€|eur/i.test(l));
+  if (euroLine) {
+    const n = lastNumBefore(euroLine, euroLine.search(/€|eur/i));
+    if (n) out.prix = parseFloat(n.replace(/[ \u00A0]/g, '').replace(',', '.'));
+  }
+  if (out.prix === null) {
+    let best = null;
+    for (const l of head) {
+      if (/\d{1,2}[h:]\d{2}|%|★|\b(min|mn|km|mi|miles)\b/i.test(l)) continue;
+      for (const m of l.matchAll(NUM)) {
+        const v = parseFloat(m[1].replace(/[ \u00A0]/g, '').replace(',', '.'));
+        if (best === null || v > best) best = v;
+      }
+    }
+    if (best !== null) out.prix = best;
+  }
+  // ETA : nombre juste avant "min"/"mn"
+  const etaLine = lines.find((l) => /\b(min|mn)\b/i.test(l));
+  if (etaLine) {
+    const n = lastNumBefore(etaLine, etaLine.search(/\b(min|mn)\b/i));
+    if (n) out.eta = parseInt(n, 10);
+  }
+  // DISTANCE : nombre juste avant "km"/"mi" (décimales conservées)
+  const distLine = lines.find((l) => /(kms|kilom|km|miles|mi)\b/i.test(l) && /\d/.test(l));
+  if (distLine) {
+    const ui = distLine.search(/(kms|kilom|km|miles|mi)\b/i);
+    const n = lastNumBefore(distLine, ui);
+    if (n) out.dist = parseFloat(n.replace(',', '.')) * (/(miles|mi)\b/i.test(distLine) ? 1.609 : 1);
+  }
+  // SURGE : x/× juste avant un chiffre, sans lettre collée avant (sinon "UberX")
   const sm = t.match(/(?:^|[^a-zàâäéèêëîïôöùûüç])[x×]\s*(\d(?:[.,]\d+)?)|(\d(?:[.,]\d+)?)\s*[x×](?![a-zàâäéèêëîïôöùûüç])/i);
   if (sm) out.surge = parseFloat((sm[1] || sm[2]).replace(',', '.'));
-  // ADRESSES : 1) ligne juste APRÈS un label Départ/Pickup ou Destination/Dropoff ;
-  // 2) sinon heuristique : exclure barre de statut (heure, %, 5G…), note ★, labels, prix…
-  //    garder les lignes avec un vrai mot (3+ lettres) ET (virgule + n°) ou mot de rue.
-  const labDep = lines.findIndex((l) => /départ|depart|pickup|prise en charge/i.test(l));
-  const labDest = lines.findIndex((l) => /destination|dropoff|drop-?off|arriv/i.test(l));
-  const NOISE = /^\d{1,2}[h:]\d{2}|%|5g|lte|4g|★|\★|avis|note|rating|accepter|refuser|nouvelle|offre|€|eur|\d+\s*(min|mn|km|mi)\b|uber|bolt|deliveroo|eats|prix|tarif|route|trajet/i;
+  // ADRESSES : 1) ligne APRÈS un label Départ/Pickup ou Destination/Dropoff (label seul ou collé) ;
+  // 2) sinon lignes "adress-like" nettoyées, en excluant barre de statut / note ★ / labels / prix.
+  const cleanLine = (l) => l.replace(/^(départ|depart|pickup|destination|dropoff|drop-?off|arriv[ée]e?)\s*[:\-]?\s*/i, '').trim();
+  const labDep = lines.findIndex((l) => /^(départ|depart|pickup|prise en charge)\b/i.test(l));
+  const labDest = lines.findIndex((l) => /^(destination|dropoff|drop-?off|arriv)\b/i.test(l));
+  const NOISE = /^\d{1,2}[h:]\d{2}|%|5g|lte|4g|★|\★|avis|note|rating|accepter|refuser|nouvelle|offre|€|eur|\b(min|mn|km|mi|miles)\b|uber|bolt|deliveroo|eats|prix|tarif|route|trajet/i;
   const STREET = /rue|av\.?|avenue|bd\.?|boulevard|place|impasse|quai|allée|allee|chemin|square|promenade|porte|cours|passage|rond|esplanade|parvis|gare|aéroport|aeroport|station/i;
-  const addr = lines.filter((l) => {
+  const addr = lines.map(cleanLine).filter((l) => {
     if (l.length < 12 || l.length > 90) return false;
     if (NOISE.test(l)) return false;
-    if (!/[a-zàâäéèêëîïôöùûüç]{3,}/i.test(l)) return false; // au moins un vrai mot
+    if (!/[a-zàâäéèêëîïôöùûüç]{3,}/i.test(l)) return false;
     return (l.includes(',') && /\d/.test(l)) || (STREET.test(l) && /\d/.test(l)) || (STREET.test(l) && l.includes(','));
   });
-  if (labDep >= 0 && lines[labDep + 1] && !NOISE.test(lines[labDep + 1])) out.pickup = lines[labDep + 1];
-  if (labDest >= 0 && lines[labDest + 1] && !NOISE.test(lines[labDest + 1])) out.dest = lines[labDest + 1];
-  if (!out.pickup && addr[0]) out.pickup = addr[0];
-  if (!out.dest) out.dest = addr.find((l) => l !== out.pickup) || '';
+  const tryLabel = (idx) => {
+    if (idx < 0) return '';
+    const same = cleanLine(lines[idx]); // label collé à l'adresse sur la même ligne
+    if (same && same !== lines[idx].trim() && addr.indexOf(same) !== -1) return same;
+    const next = lines[idx + 1] ? cleanLine(lines[idx + 1]) : ''; // label seul → ligne suivante
+    return next && !NOISE.test(next) && addr.indexOf(next) !== -1 ? next : '';
+  };
+  out.pickup = tryLabel(labDep) || addr[0] || '';
+  out.dest = tryLabel(labDest) || addr.find((l) => l !== out.pickup) || '';
   return out;
 }
 function detectPlatformFromText(text) {
