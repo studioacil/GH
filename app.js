@@ -649,14 +649,26 @@ function parseOfferText(text) {
   // DISTANCE : "3,2 km" / "3.2 km" / "2 mi" (décimales conservées, \b évite de lire "min" comme "mi")
   const dm = t.match(/(\d{1,3}(?:[.,]\d+)?)\s*(kms|kilom|km|miles|mi)\b/i);
   if (dm) out.dist = parseFloat(dm[1].replace(',', '.')) * (/^mi/i.test(dm[2]) ? 1.609 : 1);
-  // SURGE : "x1,5" / "×2" / "1,5x"
-  const sm = t.match(/[x×]\s*(\d(?:[.,]\d+)?)|(\d(?:[.,]\d+)?)\s*[x×]/i);
+  // SURGE : "x1,5" / "×2" / "1,5x" — le x doit précéder un chiffre SANS être collé à une lettre (sinon "UberX" = surge !)
+  const sm = t.match(/(?:^|[^a-zàâäéèêëîïôöùûüç])[x×]\s*(\d(?:[.,]\d+)?)|(\d(?:[.,]\d+)?)\s*[x×](?![a-zàâäéèêëîïôöùûüç])/i);
   if (sm) out.surge = parseFloat((sm[1] || sm[2]).replace(',', '.'));
-  // ADRESSES : lignes "adress-like" (lettres + (virgule ou n°)), en excluant labels/prix/eta
-  const addr = lines.filter((l) => l.length > 12 && /[a-zàâäéèêëîïôöùûüç]/i.test(l) && /(,|\d)/.test(l) &&
-    !/€|eur|\d+\s*(min|mn|km|mi)\b|nouvelle|offre|accepter|refuser|départ|destination|uber|bolt|deliveroo|eats|prix|tarif|route|trajet/i.test(l));
-  if (addr[0]) out.pickup = addr[0];
-  if (addr[1]) out.dest = addr[1];
+  // ADRESSES : 1) ligne juste APRÈS un label Départ/Pickup ou Destination/Dropoff ;
+  // 2) sinon heuristique : exclure barre de statut (heure, %, 5G…), note ★, labels, prix…
+  //    garder les lignes avec un vrai mot (3+ lettres) ET (virgule + n°) ou mot de rue.
+  const labDep = lines.findIndex((l) => /départ|depart|pickup|prise en charge/i.test(l));
+  const labDest = lines.findIndex((l) => /destination|dropoff|drop-?off|arriv/i.test(l));
+  const NOISE = /^\d{1,2}[h:]\d{2}|%|5g|lte|4g|★|\★|avis|note|rating|accepter|refuser|nouvelle|offre|€|eur|\d+\s*(min|mn|km|mi)\b|uber|bolt|deliveroo|eats|prix|tarif|route|trajet/i;
+  const STREET = /rue|av\.?|avenue|bd\.?|boulevard|place|impasse|quai|allée|allee|chemin|square|promenade|porte|cours|passage|rond|esplanade|parvis|gare|aéroport|aeroport|station/i;
+  const addr = lines.filter((l) => {
+    if (l.length < 12 || l.length > 90) return false;
+    if (NOISE.test(l)) return false;
+    if (!/[a-zàâäéèêëîïôöùûüç]{3,}/i.test(l)) return false; // au moins un vrai mot
+    return (l.includes(',') && /\d/.test(l)) || (STREET.test(l) && /\d/.test(l)) || (STREET.test(l) && l.includes(','));
+  });
+  if (labDep >= 0 && lines[labDep + 1] && !NOISE.test(lines[labDep + 1])) out.pickup = lines[labDep + 1];
+  if (labDest >= 0 && lines[labDest + 1] && !NOISE.test(lines[labDest + 1])) out.dest = lines[labDest + 1];
+  if (!out.pickup && addr[0]) out.pickup = addr[0];
+  if (!out.dest) out.dest = addr.find((l) => l !== out.pickup) || '';
   return out;
 }
 function detectPlatformFromText(text) {
