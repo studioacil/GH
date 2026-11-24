@@ -543,6 +543,12 @@ function loadTesseract() {
 // Worker OCR préchauffé : créé dès l'ouverture de l'app (écran Course) pour que la 1re
 // capture soit analysée en ~1–2 s (décision < 10 s). Le worker est réutilisé ensuite.
 let ocrWorker = null, ocrWorkerPromise = null;
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, rej) => setTimeout(() => rej(new Error(label + ' bloqué depuis ' + Math.round(ms / 1000) + ' s')), ms)),
+  ]);
+}
 function prewarmOCR() {
   if (ocrWorker || ocrWorkerPromise) return ocrWorkerPromise;
   ocrWorkerPromise = loadTesseract()
@@ -552,6 +558,11 @@ function prewarmOCR() {
       corePath: APP_BASE + 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
       langPath: APP_BASE + 'vendor/tesseract/lang',
       gzip: false, // nos fichiers lang sont des .traineddata NON compressés (sinon le worker demande .traineddata.gz → 404)
+      logger: (m) => { // étapes visibles dans la modale si ouverte
+        if (!offerModal.classList.contains('hidden') && m && m.status) {
+          offerStatus.textContent = 'OCR : ' + m.status + (m.progress !== undefined ? ' ' + Math.round(m.progress * 100) + ' %' : '');
+        }
+      },
     }))
     .then((w) => { ocrWorker = w; return w; })
     .catch(() => { ocrWorkerPromise = null; });
@@ -561,7 +572,8 @@ async function getOcrWorker() {
   if (ocrWorker) return ocrWorker;
   if (!ocrWorkerPromise) prewarmOCR();
   try {
-    return await ocrWorkerPromise;
+    // timeout : un worker qui ne répond pas ne doit pas bloquer l'écran indéfiniment
+    return await withTimeout(ocrWorkerPromise, 30000, 'init moteur OCR');
   } catch (e) {
     throw new Error('création du worker OCR : ' + (e && e.message ? e.message : e));
   }

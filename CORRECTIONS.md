@@ -13,8 +13,10 @@ Symptôme : « OCR indisponible (cannot read properties of undefined) », puis t
 | 6 | PWA du Pixel = ancienne version en cache | network-first pour le code + `updateViaCache:'none'` + toast « Mise à jour installée » ; si bloqué : supprimer/réinstaller l'icône | ✅ f9fa5aa |
 | 7 | Peu de visibilité sur l'erreur exacte | messages d'étape dans la modale + page d'autotest `maquette-ocr/test.html` (étapes ✅/❌ visibles sur le téléphone) | ✅ poussé |
 
-**Vérification** : Pixel → icône GH → Course → 📸 → capture de la pellicule → verdict zone en < 3 s.
-Si encore KO : noter le message exact de l'étape affichée.
+| 8 | **Symptôme « bloque à Chargement du moteur OCR » = createWorker ne se termine jamais (hang, pas d'erreur)** — typique d'un échec de chargement langue/core dans le worker qui n'est pas propagé | `gzip:false` (cause #5) + **timeout 30 s avec message explicite** + logger d'étapes dans la modale + autotest `maquette-ocr/test.html` | ✅ poussé f610c1a+ |
+
+**Vérification** : Pixel → icône GH → Course → 📸 → capture → verdict en < 3 s.
+Autotest sur iPhone 12 mini ET Pixel : ouvrir **`https://studioacil.github.io/GH/maquette-ocr/test.html`** → « Lancer le test OCR » → noter la 1ʳᵉ étape ❌ (1=lib, 2=image, 3=worker+langue, 4=reconnaissance).
 
 ## 🟠 P1 — Mise à jour auto de la PWA
 Fait côté code (network-first + updateViaCache none + toast + reload), bloqué par P0.4.
