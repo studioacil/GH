@@ -564,7 +564,14 @@ function prewarmOCR() {
         }
       },
     }))
-    .then((w) => { ocrWorker = w; return w; })
+    .then((w) => {
+      ocrWorker = w;
+      // PSM 10 (SPARSE_TEXT) : mieux adapté aux écrans d'offre (peu de texte, dispersé)
+      const psm = (window.Tesseract && window.Tesseract.PSM && window.Tesseract.PSM.SPARSE_TEXT) || 10;
+      return Promise.resolve(w.setParameters ? w.setParameters({ tessedit_pageseg_mode: psm }) : null)
+        .catch(() => {})
+        .then(() => w);
+    })
     .catch(() => { ocrWorkerPromise = null; });
   return ocrWorkerPromise;
 }
@@ -589,18 +596,31 @@ async function ocrImageEl(img) {
   if (creating) offerStatus.textContent = 'OCR en cours…';
   else { offerProg.style.width = '45%'; offerStatus.textContent = 'OCR en cours…'; }
   const c = document.createElement('canvas');
-  const maxW = 1100; // 1100 px suffisent pour l'OCR d'une offre, et c'est plus rapide
   const srcW = img.naturalWidth || img.width;
   const srcH = img.naturalHeight || img.height;
   if (!srcW || !srcH) throw new Error('image vide (0 px)');
-  const scale = Math.min(1, maxW / srcW);
+  // upscale vers ~1600 px de large (les petits textes d'offre aiment la résolution)
+  const targetW = 1600;
+  let scale = targetW / srcW;
+  if (srcH * scale > 3200) scale = 3200 / srcH; // sécurité mémoire
   c.width = Math.max(1, Math.round(srcW * scale));
   c.height = Math.max(1, Math.round(srcH * scale));
   const x = c.getContext('2d');
   x.drawImage(img, 0, 0, c.width, c.height);
   const d = x.getImageData(0, 0, c.width, c.height);
-  for (let i = 0; i < d.data.length; i += 4) {
-    d.data[i] = 255 - d.data[i]; d.data[i + 1] = 255 - d.data[i + 1]; d.data[i + 2] = 255 - d.data[i + 2];
+  // niveaux de gris + inversion (fond sombre → clair) + binarisation au seuil moyen
+  let sum = 0, n = 0;
+  const gray = new Float32Array(c.width * c.height);
+  for (let i = 0; i < c.width * c.height; i++) {
+    const r = d.data[i * 4], g = d.data[i * 4 + 1], b = d.data[i * 4 + 2];
+    const v = 255 - (0.299 * r + 0.587 * g + 0.114 * b); // inversion
+    gray[i] = v; sum += v; n++;
+  }
+  const th = sum / n;
+  for (let i = 0; i < c.width * c.height; i++) {
+    const v = gray[i] > th ? 255 : 0;
+    d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = v;
+    d.data[i * 4 + 3] = 255;
   }
   x.putImageData(d, 0, 0);
   let text;
@@ -615,17 +635,26 @@ async function ocrImageEl(img) {
   return text;
 }
 function parseOfferText(text) {
-  const lines = String(text).split('\n').map((l) => l.trim()).filter(Boolean);
+  const t = String(text);
+  const lines = t.split('\n').map((l) => l.trim()).filter(Boolean);
   const out = { prix: null, eta: null, dist: null, surge: null, pickup: '', dest: '' };
-  const prix = String(text).match(/(\d{1,3})[.,](\d{2})\s*€/) || String(text).match(/€\s*(\d{1,3})[.,](\d{2})/);
-  if (prix) out.prix = parseFloat((prix[1] || prix[3]) + '.' + (prix[2] || prix[4]));
-  const eta = String(text).match(/(\d{1,2})\s*min/i);
-  if (eta) out.eta = parseInt(eta[1], 10);
-  const dist = String(text).match(/(\d{1,2})[.,]\d\s*(km|mi|miles)/i);
-  if (dist) out.dist = parseFloat(dist[1].replace(',', '.')) * (/mi/i.test(dist[2]) ? 1.609 : 1);
-  const surge = String(text).match(/[x×]\s*(\d[.,]\d)/);
-  if (surge) out.surge = parseFloat(surge[1].replace(',', '.'));
-  const addr = lines.filter((l) => l.length > 14 && /[,\d]/.test(l) && !/€|min|km|mi|nouvelle|offre|accepter|refuser|depart|destination|uber|bolt/i.test(l));
+  // PRIX : ligne avec €/EUR en priorité, sinon 1er nombre à 2 décimales des 8 premières lignes
+  const head = lines.slice(0, 8);
+  const euroLine = head.find((l) => /€|eur/i.test(l)) || head.find((l) => /\d[.,]\d{2}/.test(l)) || '';
+  const pm = euroLine.match(/(\d{1,3}(?:[ \u00A0]\d{3})*)[.,](\d{2})\s*(?:€|eur)?/i) || t.match(/(\d{1,3}(?:[ \u00A0]\d{3})*)[.,](\d{2})\s*€/);
+  if (pm) out.prix = parseFloat(pm[1].replace(/[ \u00A0]/g, '') + '.' + pm[2]);
+  // ETA : "5 min" / "5 mn"
+  const em = t.match(/(\d{1,2})\s*(?:min|mn)\b/i);
+  if (em) out.eta = parseInt(em[1], 10);
+  // DISTANCE : "3,2 km" / "3.2 km" / "2 mi" (décimales conservées, \b évite de lire "min" comme "mi")
+  const dm = t.match(/(\d{1,3}(?:[.,]\d+)?)\s*(kms|kilom|km|miles|mi)\b/i);
+  if (dm) out.dist = parseFloat(dm[1].replace(',', '.')) * (/^mi/i.test(dm[2]) ? 1.609 : 1);
+  // SURGE : "x1,5" / "×2" / "1,5x"
+  const sm = t.match(/[x×]\s*(\d(?:[.,]\d+)?)|(\d(?:[.,]\d+)?)\s*[x×]/i);
+  if (sm) out.surge = parseFloat((sm[1] || sm[2]).replace(',', '.'));
+  // ADRESSES : lignes "adress-like" (lettres + (virgule ou n°)), en excluant labels/prix/eta
+  const addr = lines.filter((l) => l.length > 12 && /[a-zàâäéèêëîïôöùûüç]/i.test(l) && /(,|\d)/.test(l) &&
+    !/€|eur|\d+\s*(min|mn|km|mi)\b|nouvelle|offre|accepter|refuser|départ|destination|uber|bolt|deliveroo|eats|prix|tarif|route|trajet/i.test(l));
   if (addr[0]) out.pickup = addr[0];
   if (addr[1]) out.dest = addr[1];
   return out;
@@ -746,6 +775,7 @@ async function handleOfferFile(file) {
     const plat = detectPlatformFromText(text);
     offerPlat.textContent = '· ' + ((PLATFORMS[plat] || {}).label || plat);
     offerPlat.dataset.plat = plat;
+    if (p.prix === null) offerStatus.textContent = 'OCR ✔ — prix non détecté, saisis-le à la main (le reste est pré-rempli).';
     renderOfferVerdict();
     refineOfferWithRouting(); // trafic réel si clé Google renseignée (async, non bloquant)
   } catch (e) {
