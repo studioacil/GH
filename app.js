@@ -13,11 +13,9 @@ const LS_BONUS_PREFIX = 'garantieHoraire.bonus.v6.';
 const LS_INVOICES_PREFIX = 'garantieHoraire.invoices.v1';
 const LS_INCENTIVES_PREFIX = 'garantieHoraire.incentives.v1';
 const IMPORT_MIN_DATE = new Date('2020-01-01T00:00:00'); // plancher absolu à l'import
-// Fenêtre d'import : les 24 derniers mois en mois complets — ex. le 22/11/2026 → on démarre au 01/11/2024.
+// Import depuis le DAY ONE : plus de fenêtre glissante de 24 mois, on prend tout depuis le 01/01/2020.
 function importMinDate() {
-  const now = new Date();
-  const cut = new Date(now.getFullYear(), now.getMonth() - 24, 1); // 1er du mois, 24 mois en arrière (heure locale)
-  return cut < IMPORT_MIN_DATE ? IMPORT_MIN_DATE : cut;
+  return IMPORT_MIN_DATE;
 }
 
 /* ================= Modes, plateformes, zones ================= */
@@ -360,7 +358,7 @@ const liveChips = document.querySelectorAll('.chronoLive');
 const statusLine = $('statusLine'), phaseChips = $('phaseChips'), phaseBtns = $('phaseBtns');
 const stopBtn = $('stopBtn'), cancelBtn = $('cancelBtn');
 const zoneToggles = $('zoneToggles'), monthFilter = $('monthFilter'), sortSel = $('sortSel'), statsEl = $('stats'), ridesList = $('ridesList'), clearBtn = $('clearBtn');
-const anaPeriodSel = $('anaPeriod'), anaKpis = $('anaKpis'), anaChartTaux = $('anaChartTaux'), anaZonesEl = $('anaZones'), anaHoursEl = $('anaHours'), anaPlatsEl = $('anaPlats'), anaRecordsEl = $('anaRecords'), anaCommissionEl = $('anaCommission');
+const anaPeriodSel = $('anaPeriod'), anaKpis = $('anaKpis'), anaChartTaux = $('anaChartTaux'), anaZonesEl = $('anaZones'), anaHoursEl = $('anaHours'), anaPlatsEl = $('anaPlats'), anaRecordsEl = $('anaRecords'), anaCommissionEl = $('anaCommission'), anaTips = $('anaTips');
 const manDetails = $('manualDetails'), manSummary = $('manualSummary'), manPrice = $('manPrice'), manBonus = $('manBonus'), manDate = $('manDate'), phaseFields = $('phaseFields');
 const manAdd = $('manAdd'), manCancelEdit = $('manCancelEdit');
 const importTripsBtn = $('importTripsBtn'), importTripsFile = $('importTripsFile');
@@ -1539,7 +1537,7 @@ function renderAnaPeriodSel() {
   ).join('');
 }
 const ANA_EMPTY = '<p class="anaEmpty">Aucune course sur cette période — importe un CSV ou lance un chrono.</p>';
-/* Barres du taux horaire moyen par période, colorées par zone, avec la ligne GH */
+/* Barres du taux horaire moyen par période : dégradés par zone, grille, ligne GH lumineuse */
 function svgTaux(list) {
   const byP = new Map();
   for (const r of list) {
@@ -1549,45 +1547,64 @@ function svgTaux(list) {
   }
   const rows = Array.from(byP.entries()).map(([k, e]) => ({ k: k, taux: e.s ? e.p / (e.s / 3600) : 0 })).sort((a, b) => a.k.localeCompare(b.k));
   if (!rows.length) return ANA_EMPTY;
-  const W = 340, H = 150, padL = 8, padB = 20, padT = 14;
+  const W = 340, H = 165, padL = 8, padB = 20, padT = 18;
   const maxV = Math.max(settings.seuilDouble, settings.rate * 1.2, ...rows.map((r) => r.taux)) * 1.12;
   const innerH = H - padT - padB;
   const ghY = padT + (1 - settings.rate / maxV) * innerH;
   const bw = (W - padL - 6) / rows.length;
+  // dégradés verticaux par zone + grille horizontale
+  let defs = '';
+  ZONES.forEach((z) => {
+    defs += '<linearGradient id="gbar-' + z.id + '" x1="0" y1="1" x2="0" y2="0">' +
+      '<stop offset="0" stop-color="' + ZONE_COLORS[z.id] + '" stop-opacity=".45"/>' +
+      '<stop offset="1" stop-color="' + ZONE_COLORS[z.id] + '"/></linearGradient>';
+  });
+  let grid = '';
+  for (let g = 1; g <= 3; g++) {
+    const gy = padT + (innerH * g) / 4;
+    grid += '<line x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W - 4) + '" y2="' + gy.toFixed(1) + '" class="gridLine"/>';
+  }
   let bars = '';
   rows.forEach((r, i) => {
-    const w = Math.max(6, bw * 0.62);
+    const w = Math.max(7, bw * 0.6);
     const x = padL + i * bw + (bw - w) / 2;
-    const h = Math.max(1.5, (r.taux / maxV) * innerH);
+    const h = Math.max(2, (r.taux / maxV) * innerH);
     const y = H - padB - h;
-    const c = ZONE_COLORS[zoneDe(r.taux)];
-    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="3" fill="' + c + '"/>' +
-      '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (y - 3.5).toFixed(1) + '" class="svgVal" text-anchor="middle">' + fmtNum(r.taux, 0) + '</text>' +
-      '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (H - 7) + '" class="svgLab" text-anchor="middle">' + shortPeriod(r.k) + '</text>';
+    const z = zoneDe(r.taux);
+    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + h.toFixed(1) + '" rx="5" fill="url(#gbar-' + z + ')">' +
+      '<title>' + periodLabel(r.k) + ' — ' + fmtNum(r.taux) + ' €/h</title></rect>' +
+      '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (y - 4).toFixed(1) + '" class="svgVal" text-anchor="middle">' + fmtNum(r.taux, 0) + '</text>' +
+      '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (H - 6) + '" class="svgLab" text-anchor="middle">' + shortPeriod(r.k) + '</text>';
   });
   const gh = '<line x1="' + padL + '" y1="' + ghY.toFixed(1) + '" x2="' + (W - 4) + '" y2="' + ghY.toFixed(1) + '" class="svgGhLine"/>' +
-    '<text x="' + (W - 6) + '" y="' + (ghY - 4).toFixed(1) + '" class="svgGh" text-anchor="end">GH ' + fmtNum(settings.rate, 0) + ' €/h</text>';
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="anaSvg" preserveAspectRatio="xMidYMid meet">' + gh + bars + '</svg>';
+    '<text x="' + (W - 6) + '" y="' + (ghY - 4.5).toFixed(1) + '" class="svgGh" text-anchor="end">GH ' + fmtNum(settings.rate, 0) + ' €/h</text>';
+  return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="anaSvg" preserveAspectRatio="xMidYMid meet"><defs>' + defs + '</defs>' + grid + gh + bars + '</svg>';
 }
-/* Répartition du temps par zone : barre empilée 100 % + légende */
+/* Répartition du temps par zone : donut + légende */
 function svgZones(list) {
   const order = ['double', 'etoile', 'verte', 'rouge', 'noire'];
   const bz = { double: 0, etoile: 0, verte: 0, rouge: 0, noire: 0 };
   for (const r of list) { if (bz[r.zone] !== undefined) bz[r.zone] += r.actual; }
   const total = order.reduce((s, z) => s + bz[z], 0);
   if (!total) return ANA_EMPTY;
-  const W = 340, H = 26;
-  let x = 0, rects = '';
+  const R = 42, C = 2 * Math.PI * R, cx = 58, cy = 62, sw = 17;
+  let x = 0, arcs = '';
   order.forEach((z) => {
-    const w = (bz[z] / total) * W;
-    if (w > 0.5) rects += '<rect x="' + x.toFixed(1) + '" y="2" width="' + w.toFixed(1) + '" height="' + (H - 4) + '" rx="3" fill="' + ZONE_COLORS[z] + '"/>';
-    x += w;
+    const frac = bz[z] / total;
+    if (frac <= 0) return;
+    const len = frac * C;
+    arcs += '<circle cx="' + cx + '" cy="' + cy + '" r="' + R + '" fill="none" stroke="' + ZONE_COLORS[z] + '" stroke-width="' + sw + '" ' +
+      'stroke-dasharray="' + len.toFixed(1) + ' ' + (C - len).toFixed(1) + '" stroke-dashoffset="' + (-x).toFixed(1) + '" ' +
+      'transform="rotate(-90 ' + cx + ' ' + cy + ')" stroke-linecap="round" class="donutArc"><title>' + zoneMeta(z).label + ' — ' + fmtDur(bz[z]) + ' (' + Math.round(frac * 100) + ' %)</title></circle>';
+    x += len;
   });
+  const donut = '<svg viewBox="0 0 340 124" class="anaSvg" preserveAspectRatio="xMidYMid meet">' + arcs +
+    '<text x="' + cx + '" y="' + (cy - 2) + '" text-anchor="middle" class="donutVal">' + fmtDur(total) + '</text>' +
+    '<text x="' + cx + '" y="' + (cy + 12) + '" text-anchor="middle" class="donutLab">de temps total</text></svg>';
   const legend = order.map((z) =>
     '<span class="zb">' + zIcon(z, 1) + ' ' + zoneMeta(z).label + ' <b>' + fmtDur(bz[z]) + '</b> · ' + Math.round((bz[z] / total) * 100) + ' %</span>'
   ).join('');
-  return '<svg viewBox="0 0 ' + W + ' ' + H + '" class="anaSvg anaBar100" preserveAspectRatio="none">' + rects + '</svg>' +
-    '<div class="zoneBreakdown">' + legend + '</div>';
+  return donut + '<div class="zoneBreakdown">' + legend + '</div>';
 }
 /* Nombre de courses par heure de la journée, couleur = zone du taux moyen de l'heure */
 function svgHours(list) {
@@ -1607,7 +1624,7 @@ function svgHours(list) {
     const taux = b.s ? b.p / (b.s / 3600) : 0;
     const hgt = Math.max(2, (b.n / maxN) * innerH);
     const x = h * bw + 1.5, w = bw - 3, y = H - padB - hgt;
-    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + hgt.toFixed(1) + '" rx="2" fill="' + ZONE_COLORS[zoneDe(taux)] + '">' +
+    bars += '<rect x="' + x.toFixed(1) + '" y="' + y.toFixed(1) + '" width="' + w.toFixed(1) + '" height="' + hgt.toFixed(1) + '" rx="3.5" fill="' + ZONE_COLORS[zoneDe(taux)] + '" opacity=".92">' +
       '<title>' + h + 'h — ' + b.n + ' course(s), ' + fmtNum(taux) + ' €/h</title></rect>' +
       (h % 3 === 0 ? '<text x="' + (x + w / 2).toFixed(1) + '" y="' + (H - 4) + '" class="svgLab" text-anchor="middle">' + h + 'h</text>' : '');
   });
@@ -1681,6 +1698,45 @@ function htmlRecords(list) {
     row('pin', 'Approche la plus longue', longestApp, fmtDur(phasesOf(longestApp)[0].sec)) +
     row('euro', 'Plus gros encaissement', bestPrice, fmtMoney(bestPrice.price));
 }
+/* Conseils contextuels calculés sur la période : zone, meilleure plage horaire,
+   meilleure plateforme, part de l'approche dans le temps total, objectif. */
+function htmlTips(list, ctx) {
+  if (!list.length) return ANA_EMPTY;
+  const tips = [];
+  const { tauxMoyen, zoneP, totalSec, nb } = ctx;
+  const zTip = {
+    noire: ['💀', 'Tu es en zone NOIRE sur la période. Refuse les courses sous ' + fmtNum(seuilNoir(), 2) + ' €/h, vise les heures de pointe et le surge — chaque minute de plus fait baisser ton taux.'],
+    rouge: ['🔺', 'Zone rouge : tu tiens à peine la GH (' + fmtNum(settings.rate, 0) + ' €/h). Raccourcis les approches (zones denses) et vise les longues courses bien payées.'],
+    verte: ['🟢', 'Zone verte : la GH est tenue. Pour viser l’étoile (' + fmtNum(seuilEtoile(), 2) + ' €/h), il manque ~' + fmtNum(Math.max(0, seuilEtoile() - tauxMoyen)) + ' €/h en moyenne.'],
+    etoile: ['⭐', 'Zone étoile : bien joué. Pour viser le diamant (' + fmtNum(seuilDouble(), 2) + ' €/h), il manque ~' + fmtNum(Math.max(0, seuilDouble() - tauxMoyen)) + ' €/h en moyenne.'],
+    double: ['💎', 'Diamant : tu dépasses 2× la GH. Continue sur cette lancée — note tes meilleures plages horaires ci-dessous.'],
+  };
+  tips.push(zTip[zoneP] || zTip.verte);
+  // meilleure plage horaire (au moins 3 courses)
+  const buckets = new Array(24).fill(null).map(() => ({ n: 0, p: 0, s: 0 }));
+  for (const r of list) { const h = new Date(r.date).getHours(); buckets[h].n++; buckets[h].p += r.price; buckets[h].s += r.actual; }
+  const bestH = buckets.map((b, h) => ({ h, n: b.n, taux: b.s ? b.p / (b.s / 3600) : 0 })).filter((b) => b.n >= 3).sort((a, b) => b.taux - a.taux)[0];
+  if (bestH) tips.push(['🕐', 'Ta meilleure heure : <b>' + bestH.h + 'h</b> (' + bestH.n + ' courses à ' + fmtNum(bestH.taux) + ' €/h en moyenne).']);
+  // meilleure plateforme
+  const byP = new Map();
+  for (const r of list) { const k = r.platform || 'uber'; const e = byP.get(k) || { n: 0, p: 0, s: 0 }; e.n++; e.p += r.price; e.s += r.actual; byP.set(k, e); }
+  const bestPlat = Array.from(byP.entries()).map(([k, e]) => ({ k, taux: e.s ? e.p / (e.s / 3600) : 0, n: e.n })).filter((e) => e.n >= 3).sort((a, b) => b.taux - a.taux)[0];
+  if (bestPlat) tips.push(['🚗', 'Ta meilleure appli : <b>' + ((PLATFORMS[bestPlat.k] || {}).label || bestPlat.k) + '</b> (' + fmtNum(bestPlat.taux) + ' €/h sur ' + bestPlat.n + ' courses).']);
+  // part de l'approche
+  const appSec = list.reduce((s, r) => s + (phasesOf(r)[0] ? phasesOf(r)[0].sec : 0), 0);
+  if (totalSec && nb && appSec / totalSec > 0.25) {
+    const newTaux = (ctx.totalPrix || 0) / Math.max(1, (totalSec - nb * 300) / 3600); // approche -5 min/course
+    const gain = newTaux - tauxMoyen;
+    tips.push(['📍', 'Tes approches = <b>' + Math.round((appSec / totalSec) * 100) + ' %</b> du temps total (' + fmtDur(appSec) + '). Si tu raccourcissais l’approche de 5 min par course, ton taux passerait à ~<b>' + fmtNum(newTaux) + ' €/h</b> (+' + fmtNum(gain) + ' €/h).']);
+  }
+  // objectif perso si renseigné
+  const cible = objCibleSec();
+  if (cible && nb) {
+    const moy = totalSec / nb;
+    tips.push(['🎯', 'Objectif ' + fmtDur(cible) + '/course — actuel ' + fmtDur(moy) + ' (' + (moy <= cible ? '✅ atteint' : 'écart +' + fmtDur(moy - cible)) + ').']);
+  }
+  return tips.slice(0, 4).map(([ic, txt]) => '<div class="tip"><span class="tipIco">' + ic + '</span><p>' + txt + '</p></div>').join('');
+}
 function renderAnalyse() {
   if (!anaPeriodSel) return;
   renderAnaPeriodSel();
@@ -1717,6 +1773,7 @@ function renderAnalyse() {
   const invAna = facturedTTC(anaPeriod);
   anaCommissionEl.innerHTML = htmlCommission(list, invAna.n > 0 ? invAna.total : 0);
   anaRecordsEl.innerHTML = htmlRecords(list);
+  anaTips.innerHTML = htmlTips(list, { tauxMoyen, zoneP, totalSec, nb, totalPrix });
 }
 
 /* ================= Édition / ajout manuel ================= */
@@ -2015,7 +2072,7 @@ function applyImportedCSV(text) {
   monthSel = null;
   renderHistory();
   updateCourse();
-  showToast(ico('up', 1) + ' Import CSV : ' + imported + ' importée(s) · ' + maj + ' mise(s) à jour · ' + fusion + ' fusionnée(s) avec une course existante (doublon) · ' + ignorees + ' non terminée(s) · ' + horsFenetre + ' hors fenêtre (avant le ' + fmtDate(minDate.toISOString()) + ' — 24 derniers mois complets)' + (planifiees ? ' · ' + planifiees + ' planifiée(s) (approche plafonnée à l’ETA)' : '') + '.');
+  showToast(ico('up', 1) + ' Import CSV : ' + imported + ' importée(s) · ' + maj + ' mise(s) à jour · ' + fusion + ' fusionnée(s) avec une course existante (doublon) · ' + ignorees + ' non terminée(s) · ' + horsFenetre + ' avant 2020 (ignorées — import depuis le day one)' + (planifiees ? ' · ' + planifiees + ' planifiée(s) (approche plafonnée à l’ETA)' : '') + '.');
 }
 function importCSVFile(file) {
   const reader = new FileReader();

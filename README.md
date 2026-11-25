@@ -246,8 +246,7 @@ Mapping ligne par ligne :
 | `driver_trip_number` | `extId` : **réimporter met à jour** la course existante (pas de doublon) |
 
 Règles :
-- **Fenêtre d'import : 24 derniers mois complets** (`importMinDate()` = 1er du mois 24 mois en
-  arrière, heure locale ; plancher absolu 01/01/2020). Ex. le 22/11/2026 → à partir du 01/11/2024.
+- **Import depuis le day one** : plus de fenêtre 24 mois — tout est pris depuis le 01/01/2020 (`importMinDate()` = plancher 2020).
 - `Course = dropoff − begintrip` (fiable, prise du CSV en priorité).
 - `Approche` calculée depuis le CSV lifetime selon le **mode choisi dans Réglages**
   (`settings.approcheMode`, défaut **« Moyenne »** — validé comme le meilleur compromis) :
