@@ -42,7 +42,7 @@ const MODES = {
 // Plateformes actives par défaut (boutons chrono) : Uber en VTC, Uber Eats en livreur.
 // Réglables dans Réglages → « Plateformes actives » (stocké dans settings.platformsOn).
 const DEFAULT_PLATFORMS_ON = { vtc: ['uber'], livreur: ['ubereats'] };
-const DEFAULT_SETTINGS = Object.assign({ mode: 'vtc', platform: 'uber', theme: 'auto', sons: true, approcheMode: 'moyenne', demoOn: false, demoMul: 10, objTemps: 0, gmapsKey: '', platformsOn: { vtc: ['uber'], livreur: ['ubereats'] } }, MODES.vtc);
+const DEFAULT_SETTINGS = Object.assign({ mode: 'vtc', platform: 'uber', theme: 'auto', sons: true, approcheMode: 'moyenne', demoOn: false, demoMul: 10, platformsOn: { vtc: ['uber'], livreur: ['ubereats'] } }, MODES.vtc);
 
 // 5 zones : ⬛ noire < seuilNoir · 🟥 rouge < GH · 🟢 verte < seuilEtoile · ⭐ étoile < seuilDouble · 💎 diamant ≥ seuilDouble
 const ZONES = [
@@ -106,24 +106,6 @@ function demoMul() {
   const m = Number(settings.demoMul);
   return Number.isFinite(m) && m >= 1 ? m : 10;
 }
-// Objectif personnalisé : temps moyen par course visé, en secondes (0 = désactivé).
-function objCibleSec() {
-  const v = parseFloat(String(settings.objTemps).replace(',', '.'));
-  return Number.isFinite(v) && v > 0 ? v * 60 : 0;
-}
-// Jauge d'objectif pour une liste de courses : '' si pas d'objectif, sinon la case stat.
-function objStatHtml(totalSec, nb) {
-  const cible = objCibleSec();
-  if (!cible || !nb) return '';
-  const moy = totalSec / nb;
-  const ok = moy <= cible;
-  const pct = Math.max(4, Math.min(100, (moy / cible) * 100));
-  const coul = ok ? '#30d158' : '#ff453a';
-  return '<div class="stat ' + (ok ? 'pos' : 'neg') + '"><span>Objectif temps / course</span><strong>' + fmtDur(cible) + '</strong>' +
-    '<em>actuel ' + fmtDur(moy) + ' · écart ' + (ok ? '−' : '+') + fmtDur(Math.abs(moy - cible)) + ' par course</em>' +
-    '<div class="objBar"><i style="width:' + pct.toFixed(1) + '%;background:' + coul + '"></i></div></div>';
-}
-
 /* Bonus réels saisis à la main, par période (clé = periodKey : mois VTC / semaine livreur) */
 function loadBonus() { try { return JSON.parse(localStorage.getItem(LS_BONUS_PREFIX + profile) || '{}') || {}; } catch (e) { return {}; } }
 function saveBonus(b) { try { localStorage.setItem(LS_BONUS_PREFIX + profile, JSON.stringify(b)); } catch (e) { /* ignore */ } }
@@ -366,7 +348,7 @@ const importInvoicesBtn = $('importInvoicesBtn'), importInvoicesFile = $('import
 const importPaymentsBtn = $('importPaymentsBtn'), importPaymentsFile = $('importPaymentsFile');
 const themeSeg = $('themeSeg'), modeSeg = $('modeSeg'), platformToggles = $('platformToggles');
 const setRate = $('setRate'), setSeuilNoir = $('setSeuilNoir'), setSeuilEtoile = $('setSeuilEtoile'), setSeuilDouble = $('setSeuilDouble');
-const setDemoMul = $('setDemoMul'), setObjTemps = $('setObjTemps'), demoSeg = $('demoSeg'), objLine = $('objLine'), setGmapsKey = $('setGmapsKey');
+const setDemoMul = $('setDemoMul'), demoSeg = $('demoSeg');
 const demoBadges = document.querySelectorAll('.demoBadge'); // badge « DÉMO ×N » sur Course + Chrono
 function updateDemoBadges() {
   demoBadges.forEach((b) => {
@@ -459,16 +441,7 @@ function renderStartButtons() {
 function updateCourse() {
   const p = currentPrice();
   document.querySelectorAll('#startBtns .cta').forEach((b) => { b.disabled = p === null; });
-  // Ligne objectif : temps moyen par course visé (réglable, à la hausse ou à la baisse).
-  const cible = objCibleSec();
-  if (!cible) objLine.innerHTML = '';
-  else if (p === null) { objLine.style.color = ''; objLine.innerHTML = 'Objectif : <b>' + fmtDur(cible) + '</b> par course'; }
-  else {
-    const tObj = p / (cible / 3600); // taux horaire correspondant à l'objectif à ce prix
-    const zObj = zoneDe(tObj);
-    objLine.style.color = ZONE_COLORS[zObj];
-    objLine.innerHTML = 'Objectif <b>' + fmtDur(cible) + '</b>/course → à ce prix ' + zIcon(zObj, 1) + ' <b>' + fmtNum(tObj) + ' €/h</b> (' + zoneMeta(zObj).label + ')';
-  }
+  renderRevRow();
   quickVerdict.textContent = '';
   quickVerdict.style.color = '';
   if (p === null) { zonePills.innerHTML = ''; return; }
@@ -508,325 +481,63 @@ quickRow.addEventListener('click', (e) => {
 });
 buildQuickRow();
 
-/* ================= Analyse d'offre (mode OCR) =================
-   Capture de l'offre (file picker iOS, ou share_target « Partager → GH » sur Android) →
-   OCR 100 % local (Tesseract.js vendored) → champs extraits éditables → verdict de zone
-   → bouton « Lancer le chrono » qui démarre le chrono avec le prix de l'offre. */
-const offerBtn = $('offerBtn'), offerFile = $('offerFile'), offerModal = $('offerModal');
-const offerImg = $('offerImg'), offerScan = $('offerScan'), offerProg = $('offerProg'), offerStatus = $('offerStatus');
-const offerRaw = $('offerRaw'), offerPlat = $('offerPlat');
-const offerPrix = $('offerPrix'), offerEta = $('offerEta'), offerDist = $('offerDist'), offerTrajet = $('offerTrajet');
-const offerSurge = $('offerSurge'), offerCoutKm = $('offerCoutKm'), offerPickup = $('offerPickup'), offerDest = $('offerDest');
-const offerVerdict = $('offerVerdict'), offerZone = $('offerZone'), offerTaux = $('offerTaux'), offerDetail = $('offerDetail'), offerPill = $('offerPill');
-const offerStartBtn = $('offerStartBtn'), offerCloseBtn = $('offerCloseBtn');
-let offerRawText = '';
-
-// Base absolue de l'app (ex. '/GH/' sur GitHub Pages, '/' en local) :
-// INDISPENSABLE pour les chemins du worker OCR (dans un worker, les chemins relatifs
-// se résolvent par rapport à l'URL du worker, pas de la page → 404 sous /GH/).
-const APP_BASE = location.pathname.replace(/[^/]*$/, '');
-function loadTesseract() {
-  if (!loadTesseract.p) {
-    loadTesseract.p = new Promise((res, rej) => {
-      if (window.Tesseract) return res(window.Tesseract);
-      const s = document.createElement('script');
-      s.src = APP_BASE + 'vendor/tesseract/tesseract.min.js';
-      s.onload = () => res(window.Tesseract);
-      s.onerror = () => rej(new Error('vendor/tesseract/tesseract.min.js introuvable'));
-      document.head.appendChild(s);
-    });
+/* ================= Chrono inversé (compte à rebours par zone) =================
+   Écran Course : prix saisi → boutons ⏳ par zone → compte à rebours du temps RESTANT
+   dans la zone choisie (ex. 💎 diamant), bip à chaque passage de seuil vers le bas
+   (diamant → étoile → verte → rouge → noire). Minuteur pur : rien n'est enregistré. */
+const revRow = $('revRow');
+const REV_ORDER = ['double', 'etoile', 'verte', 'rouge', 'noire'];
+function revBoundaries(s) { return { double: s.double, etoile: s.etoile, verte: s.verte, rouge: s.rouge, noire: HOUR }; }
+function renderRevRow() {
+  const p = currentPrice();
+  if (p === null) { revRow.innerHTML = ''; return; }
+  const bOf = revBoundaries(seuilsTemps(p));
+  revRow.innerHTML = '<span class="qLabel">⏳ chrono inversé :</span>' + REV_ORDER.map((z) =>
+    '<button type="button" class="qChip revBtn" data-zone="' + z + '" style="border-color:' + ZONE_COLORS[z] + '66;color:' + ZONE_COLORS[z] + '">' +
+    zIcon(z, 1) + ' ' + zoneMeta(z).label + ' · ' + fmtDur(Math.max(1, Math.round(bOf[z]))) + '</button>'
+  ).join('');
+}
+revRow.addEventListener('click', (e) => {
+  const b = e.target.closest('.revBtn');
+  if (!b) return;
+  const p = currentPrice();
+  if (p === null) { showToast('Saisis d’abord le prix de la course.'); return; }
+  if (timer.running) { showToast('Un chrono est déjà en cours — ramené au chrono.'); showView('chrono'); return; }
+  startReverse(p, b.dataset.zone);
+});
+function startReverse(price, zone) {
+  const s = seuilsTemps(price);
+  const bOf = revBoundaries(s);
+  const zi = REV_ORDER.indexOf(zone);
+  if (zi === -1) return;
+  const targets = [];
+  for (let i = zi; i < REV_ORDER.length; i++) {
+    const v = Math.min(HOUR, Math.max(1, Math.round(bOf[REV_ORDER[i]])));
+    if (!targets.length || v > targets[targets.length - 1]) targets.push(v); // seuils croissants dans le temps
   }
-  return loadTesseract.p;
+  if (!targets.length) return;
+  if (timer.intervalId) clearInterval(timer.intervalId);
+  timer.running = true;
+  timer.reverse = { targets: targets, idx: 0, startZone: zone };
+  timer.price = price;
+  timer.platform = settings.platform;
+  timer.seuils = s;
+  timer.lastZone = null;
+  timer.lastOverBeep = 0;
+  timer.phaseDefs = [];
+  timer.phaseIdx = 0;
+  timer.marks = [];
+  timer.startStamp = Date.now();
+  chronoPlat.innerHTML = '⏳ ' + zIcon(zone, 1) + ' ' + zoneMeta(zone).label;
+  setDisplay('time');
+  buildRing();
+  renderPhaseButtons();
+  playSound('start', 880);
+  showView('chrono');
+  showToast('⏳ Chrono inversé ' + zoneMeta(zone).label + ' lancé — ' + fmtDur(targets[0]) + ' restantes à ce prix (' + fmtMoney(price) + ').');
+  tick();
+  timer.intervalId = setInterval(tick, 250);
 }
-// Worker OCR préchauffé : créé dès l'ouverture de l'app (écran Course) pour que la 1re
-// capture soit analysée en ~1–2 s (décision < 10 s). Le worker est réutilisé ensuite.
-let ocrWorker = null, ocrWorkerPromise = null;
-function withTimeout(promise, ms, label) {
-  return Promise.race([
-    promise,
-    new Promise((_, rej) => setTimeout(() => rej(new Error(label + ' bloqué depuis ' + Math.round(ms / 1000) + ' s')), ms)),
-  ]);
-}
-function prewarmOCR() {
-  if (ocrWorker || ocrWorkerPromise) return ocrWorkerPromise;
-  ocrWorkerPromise = loadTesseract()
-    // 'eng' seul = moins à télécharger et à initialiser (prix/min/km/adresses sont en latin)
-    .then((T) => T.createWorker(['eng'], 1, {
-      workerPath: APP_BASE + 'vendor/tesseract/worker.min.js',
-      corePath: APP_BASE + 'vendor/tesseract', // dossier : le worker y charge tesseract-core[-...].wasm.js
-      langPath: APP_BASE + 'vendor/tesseract/lang',
-      gzip: false, // nos fichiers lang sont des .traineddata NON compressés (sinon le worker demande .traineddata.gz → 404)
-      logger: (m) => { // étapes visibles dans la modale si ouverte
-        if (!offerModal.classList.contains('hidden') && m && m.status) {
-          offerStatus.textContent = 'OCR : ' + m.status + (m.progress !== undefined ? ' ' + Math.round(m.progress * 100) + ' %' : '');
-        }
-      },
-    }))
-    .then((w) => {
-      ocrWorker = w;
-      // PSM 10 (SPARSE_TEXT) : mieux adapté aux écrans d'offre (peu de texte, dispersé)
-      const psm = (window.Tesseract && window.Tesseract.PSM && window.Tesseract.PSM.SPARSE_TEXT) || 10;
-      return Promise.resolve(w.setParameters ? w.setParameters({ tessedit_pageseg_mode: psm }) : null)
-        .catch(() => {})
-        .then(() => w);
-    })
-    .catch(() => { ocrWorkerPromise = null; });
-  return ocrWorkerPromise;
-}
-async function getOcrWorker() {
-  if (ocrWorker) return ocrWorker;
-  if (!ocrWorkerPromise) prewarmOCR();
-  try {
-    // timeout : un worker qui ne répond pas ne doit pas bloquer l'écran indéfiniment
-    return await withTimeout(ocrWorkerPromise, 30000, 'init moteur OCR');
-  } catch (e) {
-    throw new Error('création du worker OCR : ' + (e && e.message ? e.message : e));
-  }
-}
-// capture des erreurs async pour le diagnostic de la modale OCR
-window.addEventListener('unhandledrejection', (e) => { window.__lastOcrErr = String((e.reason && e.reason.message) || e.reason || ''); });
-// OCR sur une image : canvas inversé (Tesseract préfère foncé sur clair), image réduite à 1200 px
-async function ocrImageEl(img) {
-  offerStatus.textContent = 'Chargement du moteur OCR (local)…';
-  offerProg.style.width = '6%';
-  const creating = !ocrWorker;
-  const worker = await getOcrWorker();
-  if (creating) offerStatus.textContent = 'OCR en cours…';
-  else { offerProg.style.width = '45%'; offerStatus.textContent = 'OCR en cours…'; }
-  const c = document.createElement('canvas');
-  const srcW = img.naturalWidth || img.width;
-  const srcH = img.naturalHeight || img.height;
-  if (!srcW || !srcH) throw new Error('image vide (0 px)');
-  // upscale vers ~1600 px de large (les petits textes d'offre aiment la résolution)
-  const targetW = 1600;
-  let scale = targetW / srcW;
-  if (srcH * scale > 3200) scale = 3200 / srcH; // sécurité mémoire
-  c.width = Math.max(1, Math.round(srcW * scale));
-  c.height = Math.max(1, Math.round(srcH * scale));
-  const x = c.getContext('2d');
-  x.drawImage(img, 0, 0, c.width, c.height);
-  const d = x.getImageData(0, 0, c.width, c.height);
-  // niveaux de gris + inversion (fond sombre → clair) + binarisation au seuil moyen
-  let sum = 0, n = 0;
-  const gray = new Float32Array(c.width * c.height);
-  for (let i = 0; i < c.width * c.height; i++) {
-    const r = d.data[i * 4], g = d.data[i * 4 + 1], b = d.data[i * 4 + 2];
-    const v = 255 - (0.299 * r + 0.587 * g + 0.114 * b); // inversion
-    gray[i] = v; sum += v; n++;
-  }
-  const th = sum / n;
-  for (let i = 0; i < c.width * c.height; i++) {
-    const v = gray[i] > th ? 255 : 0;
-    d.data[i * 4] = d.data[i * 4 + 1] = d.data[i * 4 + 2] = v;
-    d.data[i * 4 + 3] = 255;
-  }
-  x.putImageData(d, 0, 0);
-  let text;
-  try {
-    const r = await worker.recognize(c); // worker réutilisé (pas de terminate)
-    text = r.data.text;
-  } catch (e) {
-    throw new Error('reconnaissance : ' + (e && e.message ? e.message : e));
-  }
-  offerProg.style.width = '100%';
-  offerStatus.textContent = 'OCR terminé ✔ — corrige les champs si besoin.';
-  return text;
-}
-function parseOfferText(text) {
-  const t = String(text);
-  const lines = t.split('\n').map((l) => l.trim()).filter(Boolean);
-  const out = { prix: null, eta: null, dist: null, surge: null, pickup: '', dest: '' };
-  const NUM = /(\d{1,3}(?:[ \u00A0]\d{3})*[.,]\d{2})/g;
-  const lastNumBefore = (line, idx) => {
-    const nums = [...line.slice(0, idx).matchAll(/(\d{1,3}(?:[ \u00A0]\d{3})*(?:[.,]\d+)?)/g)];
-    return nums.length ? nums[nums.length - 1][1] : null;
-  };
-  // PRIX : ligne avec €/EUR → nombre juste avant le € ; sinon PLUS GRAND montant des 12 premières
-  // lignes (le prix est le plus gros chiffre de l'écran), en excluant heure/note/min/km.
-  const head = lines.slice(0, 12);
-  const euroLine = head.find((l) => /€|eur/i.test(l));
-  if (euroLine) {
-    const n = lastNumBefore(euroLine, euroLine.search(/€|eur/i));
-    if (n) out.prix = parseFloat(n.replace(/[ \u00A0]/g, '').replace(',', '.'));
-  }
-  if (out.prix === null) {
-    let best = null;
-    for (const l of head) {
-      if (/\d{1,2}[h:]\d{2}|%|★|\b(min|mn|km|mi|miles)\b/i.test(l)) continue;
-      for (const m of l.matchAll(NUM)) {
-        const v = parseFloat(m[1].replace(/[ \u00A0]/g, '').replace(',', '.'));
-        if (best === null || v > best) best = v;
-      }
-    }
-    if (best !== null) out.prix = best;
-  }
-  // ETA : nombre juste avant "min"/"mn"
-  const etaLine = lines.find((l) => /\b(min|mn)\b/i.test(l));
-  if (etaLine) {
-    const n = lastNumBefore(etaLine, etaLine.search(/\b(min|mn)\b/i));
-    if (n) out.eta = parseInt(n, 10);
-  }
-  // DISTANCE : nombre juste avant "km"/"mi" (décimales conservées)
-  const distLine = lines.find((l) => /(kms|kilom|km|miles|mi)\b/i.test(l) && /\d/.test(l));
-  if (distLine) {
-    const ui = distLine.search(/(kms|kilom|km|miles|mi)\b/i);
-    const n = lastNumBefore(distLine, ui);
-    if (n) out.dist = parseFloat(n.replace(',', '.')) * (/(miles|mi)\b/i.test(distLine) ? 1.609 : 1);
-  }
-  // SURGE : x/× juste avant un chiffre, sans lettre collée avant (sinon "UberX")
-  const sm = t.match(/(?:^|[^a-zàâäéèêëîïôöùûüç])[x×]\s*(\d(?:[.,]\d+)?)|(\d(?:[.,]\d+)?)\s*[x×](?![a-zàâäéèêëîïôöùûüç])/i);
-  if (sm) out.surge = parseFloat((sm[1] || sm[2]).replace(',', '.'));
-  // ADRESSES : 1) ligne APRÈS un label Départ/Pickup ou Destination/Dropoff (label seul ou collé) ;
-  // 2) sinon lignes "adress-like" nettoyées, en excluant barre de statut / note ★ / labels / prix.
-  const cleanLine = (l) => l.replace(/^(départ|depart|pickup|destination|dropoff|drop-?off|arriv[ée]e?)\s*[:\-]?\s*/i, '').trim();
-  const labDep = lines.findIndex((l) => /^(départ|depart|pickup|prise en charge)\b/i.test(l));
-  const labDest = lines.findIndex((l) => /^(destination|dropoff|drop-?off|arriv)\b/i.test(l));
-  const NOISE = /^\d{1,2}[h:]\d{2}|%|5g|lte|4g|★|\★|avis|note|rating|accepter|refuser|nouvelle|offre|€|eur|\b(min|mn|km|mi|miles)\b|uber|bolt|deliveroo|eats|prix|tarif|route|trajet/i;
-  const STREET = /rue|av\.?|avenue|bd\.?|boulevard|place|impasse|quai|allée|allee|chemin|square|promenade|porte|cours|passage|rond|esplanade|parvis|gare|aéroport|aeroport|station/i;
-  const addr = lines.map(cleanLine).filter((l) => {
-    if (l.length < 12 || l.length > 90) return false;
-    if (NOISE.test(l)) return false;
-    if (!/[a-zàâäéèêëîïôöùûüç]{3,}/i.test(l)) return false;
-    return (l.includes(',') && /\d/.test(l)) || (STREET.test(l) && /\d/.test(l)) || (STREET.test(l) && l.includes(','));
-  });
-  const tryLabel = (idx) => {
-    if (idx < 0) return '';
-    const same = cleanLine(lines[idx]); // label collé à l'adresse sur la même ligne
-    if (same && same !== lines[idx].trim() && addr.indexOf(same) !== -1) return same;
-    const next = lines[idx + 1] ? cleanLine(lines[idx + 1]) : ''; // label seul → ligne suivante
-    return next && !NOISE.test(next) && addr.indexOf(next) !== -1 ? next : '';
-  };
-  out.pickup = tryLabel(labDep) || addr[0] || '';
-  out.dest = tryLabel(labDest) || addr.find((l) => l !== out.pickup) || '';
-  return out;
-}
-function detectPlatformFromText(text) {
-  const t = String(text || '').toLowerCase();
-  const act = activePlatforms();
-  const pick = (p) => (act.indexOf(p) !== -1 ? p : act[0]);
-  if (/bolt/.test(t)) return pick('bolt');
-  if (/deliveroo/.test(t)) return pick('deliveroo');
-  if (/eats|ubereats|uber eats/.test(t)) return pick('ubereats');
-  if (/uber/.test(t)) return pick('uber');
-  return settings.platform || act[0];
-}
-function offerVerdictCalc() {
-  const prix = parseFloat(String(offerPrix.value).replace(',', '.'));
-  if (!(prix > 0)) return null;
-  const eta = parseFloat(String(offerEta.value).replace(',', '.')) || 0;
-  const dist = parseFloat(String(offerDist.value).replace(',', '.')) || 0;
-  const trajet = parseFloat(String(offerTrajet.value).replace(',', '.')) || Math.round(dist * 2.2 + 3);
-  const coutKm = parseFloat(String(offerCoutKm.value).replace(',', '.')) || 0;
-  const totalMin = eta + trajet;
-  const taux = totalMin > 0 ? prix / (totalMin / 60) : 0;
-  const zone = zoneDe(taux);
-  const net = prix - coutKm * (dist + eta * 0.4);
-  return { prix, eta, trajet, totalMin, taux, zone, net };
-}
-function renderOfferVerdict() {
-  const v = offerVerdictCalc();
-  if (!v) { offerVerdict.classList.add('hidden'); offerStartBtn.disabled = true; return; }
-  const zm = zoneMeta(v.zone);
-  offerVerdict.classList.remove('hidden');
-  offerVerdict.style.borderColor = zm.color;
-  offerVerdict.style.boxShadow = '0 0 34px ' + zm.color + '44';
-  offerZone.innerHTML = zIcon(v.zone, 1.6) + ' ' + zm.label;
-  offerZone.style.color = zm.color;
-  offerTaux.textContent = fmtNum(v.taux) + ' €/h';
-  offerTaux.style.color = zm.color;
-  offerDetail.innerHTML = 'prix ' + fmtMoney(v.prix) + ' · approche ' + v.eta + ' min + trajet ~' + v.trajet + ' min → <b>' + v.totalMin + ' min</b><br>' +
-    'net après coûts : <b>' + fmtMoney(v.net) + '</b>';
-  const ok = v.zone === 'double' || v.zone === 'etoile' || v.zone === 'verte';
-  offerPill.className = 'pill ' + (ok ? 'ok' : v.zone === 'rouge' ? 'warn' : 'bad');
-  offerPill.textContent = ok ? 'RENTABLE (≥ GH ' + fmtNum(settings.rate, 0) + ' €/h)' : v.zone === 'rouge' ? 'À ÉVALUER (sous GH, au-dessus du plancher ' + fmtNum(seuilNoir(), 2) + ' €)' : 'PERTE — zone noire (risque pour la plateforme)';
-  offerStartBtn.disabled = false;
-  offerStartBtn.innerHTML = '▶ Lancer le chrono (' + fmtMoney(v.prix) + ')';
-}
-// Estimation du trajet/approche avec le trafic réel via Google Distance Matrix.
-// Appelée UNIQUEMENT si une clé perso est renseignée (Réglages) — les adresses vont
-// alors de ton téléphone directement à Google, jamais ailleurs. Fallback : estimation locale.
-async function refineOfferWithRouting() {
-  const key = (settings.gmapsKey || '').trim();
-  if (!key) return;
-  const pickup = offerPickup.value.trim(), dest = offerDest.value.trim();
-  if (!pickup || !dest) return;
-  offerStatus.textContent = 'OCR ✔ — estimation trafic réel (Google)…';
-  try {
-    const u = (origins, destinations) => 'https://maps.googleapis.com/maps/api/distancematrix/json?origins=' +
-      encodeURIComponent(origins) + '&destinations=' + encodeURIComponent(destinations) +
-      '&mode=driving&departure_time=now&key=' + encodeURIComponent(key);
-    const r = await fetch(u(pickup, dest));
-    const j = await r.json();
-    const el = j.rows && j.rows[0] && j.rows[0].elements && j.rows[0].elements[0];
-    if (el && el.status === 'OK' && el.duration) {
-      offerTrajet.value = Math.ceil(el.duration.value / 60);
-      if (el.distance) offerDist.value = Math.round(el.distance.value / 100) / 10;
-      renderOfferVerdict();
-    }
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        try {
-          const r2 = await fetch(u(pos.coords.latitude + ',' + pos.coords.longitude, pickup));
-          const j2 = await r2.json();
-          const el2 = j2.rows && j2.rows[0] && j2.rows[0].elements && j2.rows[0].elements[0];
-          if (el2 && el2.status === 'OK' && el2.duration) { offerEta.value = Math.ceil(el2.duration.value / 60); renderOfferVerdict(); }
-        } catch (err) { /* ignore */ }
-      }, () => {}, { timeout: 6000, maximumAge: 30000 });
-    }
-    offerStatus.textContent = 'OCR ✔ + trafic réel Google ✔ — corrige les champs si besoin.';
-  } catch (e) {
-    offerStatus.textContent = 'OCR ✔ (routing Google indisponible : ' + e.message + ') — estimation locale.';
-  }
-}
-function openOfferModal() {
-  offerModal.classList.remove('hidden');
-  offerVerdict.classList.add('hidden');
-  offerRaw.textContent = '—';
-  offerStatus.textContent = '…';
-  offerProg.style.width = '0';
-  offerPlat.textContent = '';
-  offerStartBtn.disabled = true;
-}
-function closeOfferModal() { offerModal.classList.add('hidden'); }
-async function handleOfferFile(file) {
-  if (!file) return;
-  openOfferModal();
-  offerStatus.textContent = 'Chargement de l’image…';
-  // attendre VRAIMENT que l'image soit décodée avant de la passer à l'OCR
-  await new Promise((res, rej) => {
-    offerImg.onload = res;
-    offerImg.onerror = () => rej(new Error('image illisible'));
-    offerImg.src = URL.createObjectURL(file);
-  });
-  offerStatus.textContent = 'Image chargée — lancement de l’OCR local…';
-  offerScan.style.display = 'block';
-  try {
-    const text = await ocrImageEl(offerImg);
-    offerScan.style.display = 'none';
-    offerRawText = text;
-    offerRaw.textContent = text;
-    const p = parseOfferText(text);
-    offerPrix.value = p.prix !== null ? String(p.prix).replace('.', ',') : '';
-    offerEta.value = p.eta !== null ? p.eta : '';
-    offerDist.value = p.dist !== null ? String(Math.round(p.dist * 10) / 10).replace('.', ',') : '';
-    offerTrajet.value = p.dist !== null ? Math.round(p.dist * 2.2 + 3) : '';
-    offerSurge.value = p.surge !== null ? String(p.surge).replace('.', ',') : '';
-    offerPickup.value = p.pickup;
-    offerDest.value = p.dest;
-    const plat = detectPlatformFromText(text);
-    offerPlat.textContent = '· ' + ((PLATFORMS[plat] || {}).label || plat);
-    offerPlat.dataset.plat = plat;
-    if (p.prix === null) offerStatus.textContent = 'OCR ✔ — prix non détecté, saisis-le à la main (le reste est pré-rempli).';
-    renderOfferVerdict();
-    refineOfferWithRouting(); // trafic réel si clé Google renseignée (async, non bloquant)
-  } catch (e) {
-    offerScan.style.display = 'none';
-    const extra = window.__lastOcrErr ? ' [' + window.__lastOcrErr + ']' : '';
-    offerStatus.textContent = 'OCR indisponible : ' + e.message + extra + ' — remplis les champs à la main.';
-    renderOfferVerdict();
-  }
-}
-
 /* ================= Chrono (anneau 60 min + bille) ================= */
 const HOUR = 3600; // 1 tour d'anneau = 60 minutes
 const timer = {
@@ -870,6 +581,7 @@ function buildRing() {
 function startTimer(price, platform) {
   if (timer.intervalId) clearInterval(timer.intervalId);
   timer.running = true;
+  timer.reverse = null;
   timer.price = price;
   timer.platform = platform || settings.platform;
   timer.seuils = seuilsTemps(price);
@@ -941,13 +653,13 @@ function elapsedNow() {
 // Pastille « chrono actif » dans l'en-tête de tous les écrans : le chrono continue
 // de tourner quand on change d'écran (et même onglet navigateur masqué, car le temps
 // est calculé depuis Date.now()). Un clic ramène à l'écran Chrono.
-function updateLiveChips(zone, elapsed) {
+function updateLiveChips(zone, elapsed, reverse) {
   liveChips.forEach((c) => {
     if (!timer.running) { c.classList.add('hidden'); return; }
     c.classList.remove('hidden');
     c.style.color = ZONE_COLORS[zone];
     c.style.borderColor = ZONE_COLORS[zone];
-    c.innerHTML = zIcon(zone, 0.95) + ' <span class="clk">' + fmtClock(elapsed) + '</span>' +
+    c.innerHTML = zIcon(zone, 0.95) + ' <span class="clk">' + (reverse ? '⏳ ' : '') + fmtClock(elapsed) + '</span>' +
       (settings.demoOn ? ' <b class="demoTag">×' + demoMul() + '</b>' : '');
   });
 }
@@ -957,6 +669,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && ti
 function tick() {
   const elapsed = elapsedNow();
   updateDemoBadges();
+  if (timer.reverse) { tickReverse(elapsed); return; }
   const taux = tauxEffectif(timer.price, elapsed);
   const zone = zoneDe(taux);
   const s = timer.seuils;
@@ -1026,8 +739,61 @@ function tick() {
   updateLiveChips(zone, elapsed);
 }
 
+// tick pour le chrono inversé : affiche le TEMPS RESTANT dans la zone courante,
+// bip à chaque franchissement de seuil vers le bas, arrêt en zone noire.
+function tickReverse(elapsed) {
+  const rev = timer.reverse;
+  while (rev.idx < rev.targets.length && elapsed >= rev.targets[rev.idx]) {
+    rev.idx++;
+    playSound('phase', 1200, false, 1);
+    if (navigator.vibrate) navigator.vibrate(150);
+    if (rev.idx < rev.targets.length) {
+      const nz = REV_ORDER[rev.idx];
+      showToast('⏳ Tu entres en ' + zIcon(nz, 1) + ' ' + zoneMeta(nz).label + ' — il reste ' + fmtClock(Math.max(0, rev.targets[rev.idx] - elapsed)) + '.');
+    }
+  }
+  if (rev.idx >= rev.targets.length) {
+    playSound('noire', 660, true);
+    if (navigator.vibrate) navigator.vibrate([200, 80, 200]);
+    showToast('⏳ Chrono inversé terminé — tu es en zone noire à ce prix.');
+    resetTimer();
+    showView('course');
+    return;
+  }
+  const remaining = Math.max(0, rev.targets[rev.idx] - elapsed);
+  const curZ = REV_ORDER[rev.idx];
+  const col = ZONE_COLORS[curZ];
+  const fillDeg = Math.min(elapsed, HOUR) / HOUR * 360;
+  const orbitDeg = (elapsed / HOUR * 360) % 360;
+  orbiter.style.transform = 'rotate(' + orbitDeg + 'deg)';
+  orbDot.style.boxShadow = '0 0 16px 6px ' + col + ', 0 0 4px 2px #fff';
+  const stops = ringStops(timer.seuils);
+  const parts = stops.map(([z, a, b]) => {
+    const startDeg = a / HOUR * 360, endDeg = b / HOUR * 360;
+    const visEnd = Math.min(Math.max(fillDeg - startDeg, 0), endDeg - startDeg) / 360 * 100;
+    return ZONE_COLORS[z] + ' ' + (a / HOUR * 100) + '% ' + (a / HOUR * 100 + visEnd) + '%';
+  });
+  ringProgress.style.background = 'conic-gradient(' + parts.join(', ') + ', transparent ' + (fillDeg / 360 * 100) + '% 100%)';
+  ringProgress.style.opacity = '1';
+  const mm = Math.floor(remaining / 60), ss = Math.floor(remaining % 60);
+  clockMin.textContent = String(mm).padStart(2, '0');
+  clockSec.textContent = String(ss).padStart(2, '0');
+  clockEl.style.color = col;
+  clockZone.innerHTML = '⏳ ' + zIcon(curZ, 1.1) + ' ' + zoneMeta(curZ).label +
+    ' <span class="netPrice">reste ' + fmtClock(remaining) + ' · prix ' + fmtMoney(timer.price) + '</span>';
+  clockZone.style.color = col;
+  setAmbient(curZ);
+  document.title = '⏳ ' + fmtClock(remaining) + ' ' + zoneMeta(curZ).label + ' — GH';
+  const nextZ = REV_ORDER[Math.min(rev.idx + 1, REV_ORDER.length - 1)];
+  const nextT = rev.targets[rev.idx + 1] !== undefined ? rev.targets[rev.idx + 1] : HOUR;
+  statusLine.innerHTML = zIcon(rev.startZone) + ' Chrono inversé <b>' + zoneMeta(rev.startZone).label + '</b> — encore <b>' + fmtClock(remaining) + '</b> en ' +
+    zoneMeta(curZ).label + ' · puis ' + zIcon(nextZ) + ' ' + zoneMeta(nextZ).label + ' dans ' + fmtClock(Math.max(0, nextT - elapsed));
+  phaseChips.innerHTML = '';
+  updateLiveChips(curZ, remaining, true);
+}
 function stopAndSave() {
   if (!timer.running) return;
+  if (timer.reverse) { resetTimer(); playSound('stop', 520); showToast('⏳ Chrono inversé arrêté — rien d’enregistré.'); showView('course'); return; }
   const elapsed = Math.max(elapsedNow(), 1);
   const price = timer.price;
   const taux = tauxEffectif(price, elapsed);
@@ -1073,6 +839,7 @@ function resetTimer() {
   if (timer.intervalId) clearInterval(timer.intervalId);
   timer.intervalId = null;
   timer.running = false;
+  timer.reverse = null;
   clockMin.textContent = '00';
   clockSec.textContent = '00';
   clockEl.style.color = '';
@@ -1444,7 +1211,6 @@ function renderHistory() {
     '<div class="stat"><span>Par phase</span><strong>' + phaseTotals.map((e) => ico(e.icon, 0.9) + ' ' + fmtDur(e.sec)).join(' · ') + '</strong></div>' +
     '<div class="stat highlight"><span>Taux horaire moyen</span><strong>' + fmtNum(tauxMoyen) + ' €/h</strong></div>' +
     '<div class="stat ' + (tauxMoyen >= settings.rate ? 'pos' : 'neg') + '"><span>vs GH ' + fmtNum(settings.rate, 0) + ' €/h</span><strong>' + (tauxMoyen >= settings.rate ? 'au-dessus' : 'en dessous') + '</strong></div>' +
-    objStatHtml(totalSec, nb) +
     '<div class="zoneBreakdown">' +
       '<span class="zb">' + zIcon('double', 1) + ' ' + fmtDur(bz.double) + '</span>' +
       '<span class="zb">' + zIcon('etoile', 1) + ' ' + fmtDur(bz.etoile) + '</span>' +
@@ -1729,12 +1495,6 @@ function htmlTips(list, ctx) {
     const gain = newTaux - tauxMoyen;
     tips.push(['📍', 'Tes approches = <b>' + Math.round((appSec / totalSec) * 100) + ' %</b> du temps total (' + fmtDur(appSec) + '). Si tu raccourcissais l’approche de 5 min par course, ton taux passerait à ~<b>' + fmtNum(newTaux) + ' €/h</b> (+' + fmtNum(gain) + ' €/h).']);
   }
-  // objectif perso si renseigné
-  const cible = objCibleSec();
-  if (cible && nb) {
-    const moy = totalSec / nb;
-    tips.push(['🎯', 'Objectif ' + fmtDur(cible) + '/course — actuel ' + fmtDur(moy) + ' (' + (moy <= cible ? '✅ atteint' : 'écart +' + fmtDur(moy - cible)) + ').']);
-  }
   return tips.slice(0, 4).map(([ic, txt]) => '<div class="tip"><span class="tipIco">' + ic + '</span><p>' + txt + '</p></div>').join('');
 }
 function renderAnalyse() {
@@ -1763,8 +1523,7 @@ function renderAnalyse() {
       : '') +
     '<div class="stat"><span>Garanti (temps × GH ' + fmtNum(settings.rate, 0) + ' €)</span><strong>' + fmtMoney(montantGaranti) + '</strong></div>' +
     '<div class="stat ' + (estimGH > 0 ? 'pos' : '') + '"><span>Estimation GH</span><strong>' + fmtMoney(estimGH) + '</strong></div>' +
-    '<button type="button" class="stat bonusStat" title="Saisir le bonus réel de la période"><span>GH réelle + Bonus — saisir</span><strong>' + (bonus > 0 ? fmtMoney(bonus) : '- €') + '</strong></button>' +
-    objStatHtml(totalSec, nb)
+    '<button type="button" class="stat bonusStat" title="Saisir le bonus réel de la période"><span>GH réelle + Bonus — saisir</span><strong>' + (bonus > 0 ? fmtMoney(bonus) : '- €') + '</strong></button>'
   ) : '<p style="color:var(--muted)">' + ANA_EMPTY + '</p>';
   anaChartTaux.innerHTML = svgTaux(list);
   anaZonesEl.innerHTML = svgZones(list);
@@ -2094,8 +1853,6 @@ function renderSettings() {
   document.querySelectorAll('#sonsSeg .segBtn').forEach((b) => b.classList.toggle('on', (b.dataset.sons === 'on') === (settings.sons !== false)));
   document.querySelectorAll('#demoSeg .segBtn').forEach((b) => b.classList.toggle('on', (b.dataset.demo === 'on') === !!settings.demoOn));
   setDemoMul.value = settings.demoMul || 10;
-  setObjTemps.value = settings.objTemps || 0;
-  setGmapsKey.value = settings.gmapsKey || '';
   updateDemoBadges();
   document.querySelectorAll('#approcheSeg .segBtn').forEach((b) => b.classList.toggle('on', b.dataset.app === (settings.approcheMode || 'moyenne')));
   const actPlats = activePlatforms();
@@ -2148,9 +1905,6 @@ function onSettingsChange() {
   settings.seuilDouble = Number.isFinite(sd) && sd >= 0 ? sd : d.seuilDouble;
   const dm = parseFloat(String(setDemoMul.value).replace(',', '.'));
   settings.demoMul = Number.isFinite(dm) && dm >= 1 ? Math.min(dm, 1000) : 10;
-  const ot = parseFloat(String(setObjTemps.value).replace(',', '.'));
-  settings.objTemps = Number.isFinite(ot) && ot >= 0 ? ot : 0;
-  settings.gmapsKey = String(setGmapsKey.value || '').trim();
   saveSettings();
   renderSettings();
   updateCourse();
@@ -2167,32 +1921,6 @@ function switchProfile(name) {
 
 /* ================= Événements ================= */
 priceInput.addEventListener('input', updateCourse);
-offerBtn.addEventListener('click', () => offerFile.click());
-offerFile.addEventListener('change', () => {
-  if (offerFile.files && offerFile.files[0]) handleOfferFile(offerFile.files[0]);
-  offerFile.value = '';
-});
-offerCloseBtn.addEventListener('click', closeOfferModal);
-offerModal.addEventListener('click', (e) => { if (e.target === offerModal) closeOfferModal(); });
-[offerPrix, offerEta, offerDist, offerTrajet, offerCoutKm].forEach((el) => el.addEventListener('input', renderOfferVerdict));
-// Verdict → lancer le chrono avec le prix de l'offre et la plateforme détectée
-offerStartBtn.addEventListener('click', () => {
-  const v = offerVerdictCalc();
-  if (!v) return;
-  const plat = offerPlat.dataset.plat || settings.platform;
-  closeOfferModal();
-  priceInput.value = String(v.prix).replace('.', ',');
-  updateCourse();
-  if (timer.running) { showToast('Un chrono est déjà en cours — prix de l’offre : ' + fmtMoney(v.prix) + '.'); showView('chrono'); return; }
-  startTimer(v.prix, plat);
-  showToast('▶ Chrono lancé avec ' + fmtMoney(v.prix) + ' (' + ((PLATFORMS[plat] || {}).label || plat) + ') — offre ' + zoneMeta(v.zone).label + '.');
-});
-// Android : « Partager → GH » (share_target du manifest) envoie la capture au service worker
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.addEventListener('message', (e) => {
-    if (e.data && e.data.type === 'share-image' && e.data.file) handleOfferFile(e.data.file);
-  });
-}
 startBtns.addEventListener('click', (e) => {
   const b = e.target.closest('.cta');
   if (!b || b.disabled) return;
@@ -2370,7 +2098,7 @@ platformToggles.addEventListener('click', (e) => {
   renderStartButtons();
   showToast(ico('car', 1) + ' Boutons chrono ' + modeOf() + ' : ' + act.map((p) => PLATFORMS[p].label).join(', ') + '.');
 });
-[setRate, setSeuilNoir, setSeuilEtoile, setSeuilDouble, setDemoMul, setObjTemps, setGmapsKey].forEach((el) => el.addEventListener('change', onSettingsChange));
+[setRate, setSeuilNoir, setSeuilEtoile, setSeuilDouble, setDemoMul].forEach((el) => el.addEventListener('change', onSettingsChange));
 demoSeg.addEventListener('click', (e) => {
   const b = e.target.closest('.segBtn');
   if (!b) return;

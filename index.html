@@ -206,14 +206,10 @@
       <input id="priceInput" class="heroInput" inputmode="decimal" placeholder="0,00 €" autocomplete="off" />
     </div>
     <div class="zonePills" id="zonePills"></div>
-    <div class="objLine" id="objLine"></div>
     <div class="quickRow" id="quickRow"></div>
     <div class="quickVerdict" id="quickVerdict"></div>
+    <div class="revRow" id="revRow"></div>
     <div class="ctaCol" id="startBtns"></div>
-    <div class="rowBtns" style="justify-content:center">
-      <button type="button" class="miniBtn glassBtn" id="offerBtn">📸 Analyser une offre (capture)</button>
-      <input type="file" id="offerFile" accept="image/*" class="hidden" />
-    </div>
   </section>
 
   <!-- ============ CHRONO ============ -->
@@ -374,8 +370,7 @@
         <button type="button" class="segBtn" data-demo="on"><svg class="ico"><use href="#i-play"/></svg> Activé</button>
       </div></label>
       <label class="fld"><span>Vitesse de démo (×)</span><input id="setDemoMul" class="inpGlass" type="number" inputmode="numeric" min="1" max="1000" step="1" /></label>
-      <label class="fld"><span>Objectif : temps moyen par course visé (min, 0 = désactivé — à la hausse ou à la baisse)</span><input id="setObjTemps" class="inpGlass" type="number" inputmode="decimal" min="0" step="0.5" placeholder="ex. 20" /></label>
-      <label class="fld"><span>Clé API Google Maps (optionnel — mode OCR : estimation du trajet avec le trafic réel). Stockée en local, envoyée uniquement à Google.</span><input id="setGmapsKey" class="inpGlass" type="text" autocomplete="off" spellcheck="false" placeholder="AIza…" /></label>
+      <label class="fld"><span>Chrono inversé par zone : lance un compte à rebours depuis le seuil de la zone choisie (Course → « ⏳ » sous le prix).</span></label>
       <label class="fld"><span>Plateformes actives (boutons chrono)</span><div class="seg2 segWrap" id="platformToggles"></div></label>
       <label class="fld"><span>Approche importée (CSV lifetime)</span><div class="seg2 segCompact" id="approcheSeg">
         <button type="button" class="segBtn" data-app="eta" title="Approche estimée = min(begintrip − request, eta)">ETA</button>
@@ -399,37 +394,6 @@
       <button class="cta ctaGhost" id="logoutBtn">Se déconnecter</button>
     </div>
   </section>
-
-  <!-- ============ MODALE ANALYSE D'OFFRE (mode OCR) ============ -->
-  <div class="modal hidden" id="offerModal">
-    <div class="modalCard glass">
-      <h3>📸 Analyse d'offre <span class="offerPlat" id="offerPlat"></span></h3>
-      <div class="offerImgWrap"><img id="offerImg" alt="capture de l'offre" /><div class="scanline" id="offerScan"></div></div>
-      <div class="prog"><i id="offerProg"></i></div>
-      <div class="offerStatus" id="offerStatus">…</div>
-      <details class="offerRawWrap"><summary>Texte brut OCR</summary><div class="ocrRaw" id="offerRaw"></div></details>
-      <div class="offerFields" id="offerFields">
-        <label class="fld"><span>Prix (€)</span><input type="number" step="0.01" inputmode="decimal" id="offerPrix" /></label>
-        <label class="fld"><span>Approche (min)</span><input type="number" step="1" inputmode="numeric" id="offerEta" /></label>
-        <label class="fld"><span>Distance (km)</span><input type="number" step="0.1" inputmode="decimal" id="offerDist" /></label>
-        <label class="fld"><span>Trajet estimé (min)</span><input type="number" step="1" inputmode="numeric" id="offerTrajet" /></label>
-        <label class="fld"><span>Surge (×)</span><input type="number" step="0.1" inputmode="decimal" id="offerSurge" /></label>
-        <label class="fld"><span>Coût perso (€/km)</span><input type="number" step="0.05" inputmode="decimal" id="offerCoutKm" value="0,30" /></label>
-        <label class="fld offerAddr"><span>Départ</span><input type="text" id="offerPickup" /></label>
-        <label class="fld offerAddr"><span>Destination</span><input type="text" id="offerDest" /></label>
-      </div>
-      <div class="verdict hidden" id="offerVerdict">
-        <div class="vZone" id="offerZone">—</div>
-        <div class="vTaux" id="offerTaux">—</div>
-        <div class="vDetail" id="offerDetail">—</div>
-        <span class="pill" id="offerPill"></span>
-      </div>
-      <div class="btnRow" style="margin-top:12px">
-        <button type="button" class="cta" id="offerStartBtn">▶ Lancer le chrono</button>
-        <button type="button" class="cta ctaGhost" id="offerCloseBtn">Fermer</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ============ TAB BAR ============ -->
   <nav class="tabbar" id="tabbar">

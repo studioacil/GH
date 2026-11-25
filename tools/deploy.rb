@@ -55,17 +55,20 @@ head = ref['object']['sha']
 base_tree = api(:get, "/git/commits/#{head}")['tree']['sha']
 puts "Branche #{branch} @ #{head[0, 7]}"
 
-# 2) liste des fichiers à pousser (secrets exclus)
+# 2) liste des fichiers à pousser (secrets exclus) + fichiers distants supprimés localement (prune)
 files = Dir.chdir(ROOT) { Dir.glob('**/*', File::FNM_DOTMATCH).select { |f| File.file?(f) && EXCLUDE.none? { |r| r.match?(f) } } }
 puts "#{files.length} fichiers à pousser…"
+remote_blobs = api(:get, "/git/trees/#{branch}?recursive=1")['tree'].select { |t| t['type'] == 'blob' }
+deletes = remote_blobs.reject { |t| files.include?(t['path']) }.map { |t| { path: t['path'], mode: '100644', type: 'blob', sha: nil } } # sha: nil = suppression dans l'arbre
+deletes.each { |d| puts "🗑 prune : #{d[:path]}" }
 
-# 3) un blob par fichier (base64), puis un arbre, un commit, et on pousse la ref
+# 3) un blob par fichier (base64), puis un arbre (ajouts + suppressions), un commit, et on pousse la ref
 tree = files.map do |f|
   content = File.binread(File.join(ROOT, f))
   blob = api(:post, '/git/blobs', { content: Base64.strict_encode64(content), encoding: 'base64' })
   print '.'
   { path: f, mode: '100644', type: 'blob', sha: blob['sha'] }
-end
+end + deletes
 puts
 new_tree = api(:post, '/git/trees', { base_tree: base_tree, tree: tree })['sha']
 commit = api(:post, '/git/commits', {

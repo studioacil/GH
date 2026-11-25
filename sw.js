@@ -1,6 +1,6 @@
 /* GH — service worker : cache « app shell » en cache-first pour fonctionner hors-ligne.
    Incrémenter CACHE à chaque déploiement (les anciens caches sont purgés au activate). */
-const CACHE = 'gh-shell-v5'; // v5 : precache fichier par fichier (un échec ne bloque plus l'install du SW)
+const CACHE = 'gh-shell-v6'; // v6 : module OCR supprimé (plus de vendor à pré-cacher)
 const SHELL = [
   './',
   './index.html',
@@ -20,19 +20,6 @@ const SHELL = [
   './sons/son-rouge.mp3',
   './sons/son-noire.mp3',
   './sons/son-stop.mp3',
-  // moteur OCR pré-caché à l'installation de la PWA (1er chargement lourd une fois,
-  // ensuite l'OCR démarre en ~1 s même hors-ligne)
-  './vendor/tesseract/tesseract.min.js',
-  './vendor/tesseract/worker.min.js',
-  './vendor/tesseract/tesseract-core.wasm',
-  './vendor/tesseract/tesseract-core.wasm.js',
-  './vendor/tesseract/tesseract-core-simd.wasm',
-  './vendor/tesseract/tesseract-core-simd.wasm.js',
-  './vendor/tesseract/tesseract-core-lstm.wasm',
-  './vendor/tesseract/tesseract-core-lstm.wasm.js',
-  './vendor/tesseract/tesseract-core-simd-lstm.wasm',
-  './vendor/tesseract/tesseract-core-simd-lstm.wasm.js',
-  './vendor/tesseract/lang/eng.traineddata',
 ];
 
 self.addEventListener('install', (e) => {
@@ -54,20 +41,6 @@ self.addEventListener('activate', (e) => {
 
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
-  // Android share_target : « Partager → GH » depuis une capture d'offre → image à analyser
-  if (e.request.method === 'POST' && url.searchParams.get('share') === 'image') {
-    // (branche POST : ne pas return avant respondWith)
-    e.respondWith(Response.redirect('./index.html?share=image'));
-    e.waitUntil((async () => {
-      try {
-        const data = await e.request.formData();
-        const file = data.get('media');
-        const client = await self.clients.get(e.resultingClientId);
-        if (client && file && file.size) client.postMessage({ type: 'share-image', file });
-      } catch (err) { /* ignore */ }
-    })());
-    return;
-  }
   if (e.request.method !== 'GET') return;
   if (url.origin !== location.origin) return; // jamais de cache cross-origin
   // Network-first pour le code (html/js/css) : la PWA se met à jour toute seule
@@ -83,7 +56,7 @@ self.addEventListener('fetch', (e) => {
     );
     return;
   }
-  // Cache-first pour le lourd et statique (vendor/tesseract, sons, icons, images)
+  // Cache-first pour le lourd et statique (sons, icons, images)
   e.respondWith(
     caches.match(e.request, { ignoreSearch: true }).then((hit) => {
       if (hit) return hit;

@@ -1,3 +1,6 @@
+# ⚠️ ABANDONNÉ (22/11/2026) — module OCR retiré de l'appli à la demande de Jolan.
+# Remplacé par le **chrono inversé par zone** (voir README §6). Ce fichier reste pour mémoire.
+
 # GH V2 — « Analyse d'offre » (style Ride_IQ, mais 100 % local) + Webapp Android
 
 Objectif : labelliser une offre Uber/Bolt **avant de l'accepter** (zone diamant→noire +

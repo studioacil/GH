@@ -39,9 +39,7 @@ GH_TOKEN=ghp_xxxx ./tools/deploy.sh     # le token reste sur ta machine
 - App de production : **http://localhost:8471/** (HTTP) et **https://localhost:8472/** (HTTPS, port PWA)
 - Sur iPhone (même Wi-Fi que le Mac) : **http://192.168.1.70:8471/** ou **https://192.168.1.70:8472/**
 - Maquette interactive 2027 (référence design, mode démo ×10) : **http://localhost:8471/maquette-2027/**
-- Maquette **mode « OCR »** : **http://localhost:8471/maquette-ocr/** — spec `V2-OFFRE.md` ; corrections en cours : **`CORRECTIONS.md`**
   **http://localhost:8471/maquette-ocr/** — spec dans `V2-OFFRE.md`
-- **Mode OCR en prod (V2)** : bouton 📸 sur l'écran Course → capture → OCR local (Tesseract préchauffé,
   ~1–2 s) → verdict de zone → « ▶ Lancer le chrono (prix) ». Sur **Android** : `share_target` dans le
   manifest → capture → **Partager → GH** → OCR auto (nécessite HTTPS : GitHub Pages ou port 8472).
 
@@ -138,6 +136,8 @@ dans les réglages ne fait que pré-sélectionner le bouton de lancement par dé
 
 Chaque course de l'historique est **modifiable** (prix + durée de chaque phase, en
 min + sec) pour corriger les fautes de frappe.
+
+- **Chrono inversé par zone** : sur l'écran Course, prix saisi → boutons ⏳ 💎/⭐/🟢/🔺/💀 avec le temps restant dans la zone → compte à rebours, bip à chaque seuil franchi vers le bas. Minuteur pur, rien d'enregistré.
 
 ### 3.5 Sons
 
@@ -415,11 +415,6 @@ Résultat attendu : prix **13,81 €** (19,95 − 6,14), approche **1119 s**, co
 - Sons : start (UBER ACCEPT), phase (UBER DRIVER DISPATCH), **double/étoile (UBER STARS)**,
   **verte (UBER ONLINE)**, rouge (MyInstants), noire (klaxon), stop (UBER OFFLINE) —
   fallback bip si fichier absent.
-- **Objectif personnalisé** (`settings.objTemps`, réglages) : temps moyen **par course** visé en
-  minutes, libre (à la hausse ou à la baisse), 0 = désactivé. Affiché : sur l'écran Course
-  (« à ce prix, l'objectif = X €/h, zone Y »), et jauge « Objectif temps / course » dans
-  l'Historique (période sélectionnée) et l'Analyse (actuel vs cible, écart ± par course, barre
-  verte/rouge).
 - **Mode démo réglable** (`settings.demoOn` + `settings.demoMul`, défaut ×10) : le chrono
   avance ×N (`elapsedNow()`), badge « DÉMO ×N » sur l'écran Chrono + tag ×N dans la pastille
   « chrono actif », seuils des pastilles Course divisés par N pour rester cohérents.

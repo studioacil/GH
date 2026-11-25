@@ -1,5 +1,7 @@
 # CORRECTIONS.md — Feuille de route des corrections (22/11/2026)
 
+> ⚠️ **Le module OCR a été SUPPRIMÉ de l'appli** (décision Jolan : parse peu fiable sur vraies captures). Le chrono inversé par zone le remplace (Course → ⏳). `V2-OFFRE.md` = spec archivée. vendor/ + maquette-ocr/ supprimés du repo.
+
 ## 🔴 P0 — L'OCR ne marche pas sur le Pixel (PWA installée depuis github.io/GH)
 Symptôme : « OCR indisponible (cannot read properties of undefined) », puis toujours rien.
 
